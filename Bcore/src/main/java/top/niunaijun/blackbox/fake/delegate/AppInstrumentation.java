@@ -24,6 +24,7 @@ import top.niunaijun.blackbox.utils.HackAppUtils;
 import top.niunaijun.blackbox.utils.compat.ActivityCompat;
 import top.niunaijun.blackbox.utils.compat.ActivityManagerCompat;
 import top.niunaijun.blackbox.utils.compat.ContextCompat;
+import top.niunaijun.blackbox.utils.compat.ImmersiveCompat;
 
 public final class AppInstrumentation extends BaseInstrumentationDelegate implements IInjectHook {
 
@@ -113,6 +114,7 @@ public final class AppInstrumentation extends BaseInstrumentationDelegate implem
             activity.getTheme().applyStyle(info.theme, true);
         }
         ActivityManagerCompat.setActivityOrientation(activity, info.screenOrientation);
+        ImmersiveCompat.apply(activity);
     }
 
     @Override
@@ -126,12 +128,26 @@ public final class AppInstrumentation extends BaseInstrumentationDelegate implem
     public void callActivityOnCreate(Activity activity, Bundle icicle, PersistableBundle persistentState) {
         checkActivity(activity);
         super.callActivityOnCreate(activity, icicle, persistentState);
+        ImmersiveCompat.apply(activity);
     }
 
     @Override
     public void callActivityOnCreate(Activity activity, Bundle icicle) {
         checkActivity(activity);
         super.callActivityOnCreate(activity, icicle);
+        ImmersiveCompat.apply(activity);
+    }
+
+    @Override
+    public void callActivityOnResume(Activity activity) {
+        super.callActivityOnResume(activity);
+        ImmersiveCompat.apply(activity);
+    }
+
+    @Override
+    public void callActivityOnNewIntent(Activity activity, Intent intent) {
+        super.callActivityOnNewIntent(activity, intent);
+        ImmersiveCompat.apply(activity);
     }
 
     @Override

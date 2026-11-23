@@ -571,6 +571,8 @@ cache, installs it into the sandbox, and then lists sandboxed apps with **Launch
 
 - **All-files access is required for reliable launches** — the screen shows the current
   state and can open the system All files access settings for NJ-Dialer.
+- **Apps open immersive full screen** — status and navigation bars are hidden when a
+  sandboxed app opens; swipe from the edge to reveal them temporarily.
 - **Best for simple utility APKs** — apps that depend on Google Play services, Play
   Integrity, banking/anti-tamper protections, or 32-bit-only native libraries are likely to
   fail. Verified working on-device with a small notes APK.
