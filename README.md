@@ -571,6 +571,12 @@ cache, installs it into the sandbox, and then lists sandboxed apps with **Launch
 
 - **All-files access is required for reliable launches** — the screen shows the current
   state and can open the system All files access settings for NJ-Dialer.
+- **Shared folders are opt-in per app** — each app’s ⋮ menu can switch between virtual
+  storage and passthrough for `Download`, `Documents`, `DCIM`, `Movies`, `Music`, and
+  `Pictures`. The app is stopped when the mode changes and must be relaunched. Shared
+  folders are not private: the sandboxed app shares NJ-Dialer’s UID and permissions.
+- **Crash history survives relaunches** — **Info** includes diagnostics, and
+  **Export crash logs** writes raw BBDiag/CrashMonitor logs to `Download/NJCrash/`.
 - **Apps open immersive full screen** — status and navigation bars are hidden when a
   sandboxed app opens; swipe from the edge to reveal them temporarily.
 - **Best for simple utility APKs** — apps that depend on Google Play services, Play

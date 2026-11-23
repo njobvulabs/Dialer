@@ -77,7 +77,8 @@ import java.util.Date
 private data class SandboxApp(
     val packageName: String,
     val label: String,
-    val version: String
+    val version: String,
+    val sharedStorage: Boolean = false
 )
 
 private enum class SandboxSortMode(val label: String) {
@@ -113,6 +114,7 @@ fun SandboxScreen(viewModel: MainViewModel) {
     var busy by remember { mutableStateOf(false) }
     var allFilesGranted by remember { mutableStateOf(runCatching { BlackBoxCore.get().hasAllFilesAccess() }.getOrDefault(false)) }
     var pendingLaunchAfterGrant by remember { mutableStateOf<String?>(null) }
+    var pendingStorageToggle by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var showSearch by remember { mutableStateOf(false) }
     var sortMode by remember { mutableStateOf(SandboxSortMode.Name) }
@@ -144,7 +146,10 @@ fun SandboxScreen(viewModel: MainViewModel) {
                         val version = listOfNotNull(info.versionName, info.versionCode.toString())
                             .joinToString(" (")
                             .plus(if (info.versionName != null) ")" else "")
-                        SandboxApp(info.packageName, label, version)
+                        val sharedStorage = runCatching {
+                            BlackBoxCore.get().hasSharedInternalStorageAccess(info.packageName, 0)
+                        }.getOrDefault(false)
+                        SandboxApp(info.packageName, label, version, sharedStorage)
                     }
                 }.getOrElse { e ->
                     listError = "Could not list sandbox apps: ${errorText(e)}"
@@ -251,7 +256,10 @@ fun SandboxScreen(viewModel: MainViewModel) {
     fun uninstallApp(app: SandboxApp) {
         scope.launch {
             val result = withContext(Dispatchers.IO) {
-                runCatching { BlackBoxCore.get().uninstallPackageAsUser(app.packageName, 0) }
+                runCatching {
+                    BlackBoxCore.get().uninstallPackageAsUser(app.packageName, 0)
+                    BlackBoxCore.get().setSharedInternalStorageAccess(app.packageName, 0, false)
+                }
             }
             result.fold(
                 onSuccess = {
@@ -277,6 +285,37 @@ fun SandboxScreen(viewModel: MainViewModel) {
                 .onFailure { setStatus("Could not open All files access settings: ${errorText(it)}", SandboxStatusTone.Error) }
         } else {
             setStatus("All files access is not required on this Android version.")
+        }
+    }
+
+    fun setSharedStorage(app: SandboxApp, enabled: Boolean) {
+        if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !allFilesGranted) {
+            pendingStorageToggle = app.packageName to enabled
+            setStatus("Grant all files access before enabling shared folders.", SandboxStatusTone.Error)
+            openAllFilesAccess(app.packageName)
+            return
+        }
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    BlackBoxCore.get().setSharedInternalStorageAccess(app.packageName, 0, enabled)
+                    BlackBoxCore.get().stopPackage(app.packageName, 0)
+                    BlackBoxCore.get().hasSharedInternalStorageAccess(app.packageName, 0)
+                }
+            }
+            result.fold(
+                onSuccess = { active ->
+                    apps = apps.map {
+                        if (it.packageName == app.packageName) it.copy(sharedStorage = active) else it
+                    }
+                    setStatus(
+                        if (active) "Shared folders enabled for ${app.label}. Relaunch it to apply."
+                        else "Virtual storage restored for ${app.label}. Relaunch it to apply.",
+                        SandboxStatusTone.Success
+                    )
+                },
+                onFailure = { setStatus("Could not change storage access: ${errorText(it)}", SandboxStatusTone.Error) }
+            )
         }
     }
 
@@ -329,19 +368,82 @@ fun SandboxScreen(viewModel: MainViewModel) {
         setStatus("Diagnostics copied to clipboard.", SandboxStatusTone.Success)
     }
 
+    fun exportCrashLogs() {
+        scope.launch {
+            val saved = withContext(Dispatchers.IO) {
+                runCatching {
+                    val report = StringBuilder()
+                    fun appendFile(title: String, file: File, maxChars: Int = 30000) {
+                        report.append("\n=== ").append(title).append(" ===\n")
+                        if (!file.exists()) {
+                            report.append("(missing: ").append(file.absolutePath).append(")\n")
+                            return
+                        }
+                        val text = runCatching { file.readText() }.getOrDefault("(unreadable)")
+                        if (text.length > maxChars) {
+                            report.append("(truncated, last ").append(maxChars).append(" chars)\n")
+                            report.append(text.takeLast(maxChars))
+                        } else {
+                            report.append(text)
+                        }
+                    }
+
+                    val diagDir = File(context.filesDir, "bb_diag")
+                    appendFile("BBDiag crash", File(diagDir, "crash.txt"))
+                    appendFile("BBDiag stage", File(diagDir, "stage.txt"), 4000)
+                    appendFile("BBDiag trace", File(diagDir, "trace.log"))
+
+                    val crashDir = File(context.filesDir, "crash_logs")
+                    val logs = crashDir.listFiles { file ->
+                        file.isFile && file.name.endsWith(".log", ignoreCase = true)
+                    }.orEmpty().sortedByDescending { it.lastModified() }.take(8)
+                    if (logs.isEmpty()) {
+                        report.append("\n=== CrashMonitor logs ===\n(no logs in ")
+                            .append(crashDir.absolutePath).append(")\n")
+                    } else {
+                        logs.forEachIndexed { index, file ->
+                            appendFile("CrashMonitor ${index + 1}: ${file.name}", file)
+                        }
+                    }
+                    CrashLog.saveSandboxReport(report.toString(), "crashlogs").absolutePath
+                }
+            }
+            val message = saved.fold(
+                onSuccess = { path -> "Saved crash logs to $path" },
+                onFailure = { e -> "Could not export crash logs: ${errorText(e)}" }
+            )
+            setStatus(
+                message,
+                if (saved.isSuccess) SandboxStatusTone.Success else SandboxStatusTone.Error
+            )
+        }
+    }
+
     fun handleResume() {
         refreshApps()
-        val pending = pendingLaunchAfterGrant ?: return
+        val pending = pendingLaunchAfterGrant
+        val pendingToggle = pendingStorageToggle
+        if (pending == null && pendingToggle == null) return
         val granted = runCatching { BlackBoxCore.get().hasAllFilesAccess() }.getOrDefault(false)
         if (!granted) return
         allFilesGranted = true
-        pendingLaunchAfterGrant = null
-        val app = apps.firstOrNull { it.packageName == pending }
-        if (app != null) {
-            launchApp(app)
-        } else {
-            setStatus("All files access granted. Open the app from the list to retry.", SandboxStatusTone.Success)
+        if (pendingToggle != null) {
+            pendingStorageToggle = null
+            val app = apps.firstOrNull { it.packageName == pendingToggle.first }
+            if (app != null) {
+                setSharedStorage(app, pendingToggle.second)
+                return
+            }
         }
+        if (pending != null) {
+            pendingLaunchAfterGrant = null
+            val app = apps.firstOrNull { it.packageName == pending }
+            if (app != null) {
+                launchApp(app)
+                return
+            }
+        }
+        setStatus("All files access granted. Open the app from the list to retry.", SandboxStatusTone.Success)
     }
 
     val refreshUpdater = rememberUpdatedState { refreshApps() }
@@ -453,6 +555,12 @@ fun SandboxScreen(viewModel: MainViewModel) {
                             text = "Environment report",
                             icon = AppIcons.Info,
                             onClick = { showDiagnostics(null) }
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        AppSecondaryButton(
+                            text = "Export crash logs",
+                            icon = AppIcons.SaveAlt,
+                            onClick = { exportCrashLogs() }
                         )
                     }
                 }
@@ -577,6 +685,21 @@ fun SandboxScreen(viewModel: MainViewModel) {
                                         onDismissRequest = { actionMenuFor = null }
                                     ) {
                                         DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    if (app.sharedStorage) "Storage: Shared folders"
+                                                    else "Storage: Virtual"
+                                                )
+                                            },
+                                            leadingIcon = {
+                                                Icon(AppIcons.Storage, contentDescription = null)
+                                            },
+                                            onClick = {
+                                                actionMenuFor = null
+                                                setSharedStorage(app, !app.sharedStorage)
+                                            }
+                                        )
+                                        DropdownMenuItem(
                                             text = { Text("Stop") },
                                             leadingIcon = { Icon(AppIcons.Stop, contentDescription = null) },
                                             onClick = {
@@ -616,6 +739,13 @@ fun SandboxScreen(viewModel: MainViewModel) {
                                 "${app.packageName}\n${app.version}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "Storage: ${if (app.sharedStorage) "Shared folders" else "Virtual"}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (app.sharedStorage) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Spacer(Modifier.height(10.dp))
                             AppSecondaryButton(

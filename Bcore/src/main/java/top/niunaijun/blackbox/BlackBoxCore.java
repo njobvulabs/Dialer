@@ -40,6 +40,7 @@ import top.niunaijun.blackbox.app.configuration.ClientConfiguration;
 import top.niunaijun.blackbox.core.GmsCore;
 import top.niunaijun.blackbox.core.NativeCore;
 import top.niunaijun.blackbox.core.env.BEnvironment;
+import top.niunaijun.blackbox.core.env.SharedStorageConfig;
 import top.niunaijun.blackbox.core.system.DaemonService;
 import top.niunaijun.blackbox.core.system.ServiceManager;
 import top.niunaijun.blackbox.core.system.user.BUserHandle;
@@ -79,7 +80,7 @@ import top.niunaijun.blackbox.utils.LogSender;
 public class BlackBoxCore extends ClientConfiguration {
     public static final String TAG = "BlackBoxCore";
     /** Bumped with every launch-fix build so an on-screen diagnostic identifies the installed APK. */
-    public static final String DIAG_BUILD = "bb-4.0.8-metares";
+    public static final String DIAG_BUILD = "bb-4.0.9-sharedfs";
 
     private static final BlackBoxCore sBlackBoxCore = new BlackBoxCore();
     private static Context sContext;
@@ -1129,10 +1130,17 @@ public class BlackBoxCore extends ClientConfiguration {
         return StoragePermissionHelper.REQUEST_CODE_MANAGE_STORAGE;
     }
 
+    public void setSharedInternalStorageAccess(String packageName, int userId, boolean enabled) {
+        SharedStorageConfig.set(packageName, userId, enabled);
+    }
+
+    public boolean hasSharedInternalStorageAccess(String packageName, int userId) {
+        return SharedStorageConfig.has(packageName, userId);
+    }
+
     public boolean launchApk(String packageName, int userId) {
         // Start a fresh per-launch trace so a previous app's crash does not get misattributed.
         try {
-            top.niunaijun.blackbox.utils.BBDiag.clearCrash();
             top.niunaijun.blackbox.utils.BBDiag.trace("launch",
                     "launchApk pkg=" + packageName + " user=" + userId);
             top.niunaijun.blackbox.utils.BBDiag.stage("host:launchApk " + packageName);
@@ -1268,6 +1276,9 @@ public class BlackBoxCore extends ClientConfiguration {
             sb.append("users: ERROR ").append(t).append("\n");
         }
         sb.append("target: ").append(packageName).append(" user=").append(userId).append("\n");
+        sb.append("sharedStorage=")
+                .append(hasSharedInternalStorageAccess(packageName, userId) ? "shared-folders" : "virtual")
+                .append("\n");
         try {
             PackageInfo hostPi = top.niunaijun.blackbox.utils.compat.PackageParserFix
                     .getInstalledPackageInfo(getContext(), packageName);

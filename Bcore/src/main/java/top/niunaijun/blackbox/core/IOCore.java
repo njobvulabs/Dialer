@@ -19,6 +19,7 @@ import java.util.Set;
 import top.niunaijun.blackbox.BlackBoxCore;
 
 import top.niunaijun.blackbox.core.env.BEnvironment;
+import top.niunaijun.blackbox.core.env.SharedStorageConfig;
 import top.niunaijun.blackbox.utils.FileUtils;
 import top.niunaijun.blackbox.utils.TrieTree;
 
@@ -65,8 +66,8 @@ public class IOCore {
             return path;
         }
         String search = sBlackTree.search(path);
-        if (!TextUtils.isEmpty(search))
-            return search;
+        if (!TextUtils.isEmpty(search) && pathMatches(path, search))
+            return path;
 
         
         String key = mTrieTree.search(path);
@@ -81,6 +82,13 @@ public class IOCore {
             return null;
         String pathStr = path.getAbsolutePath();
         return new File(redirectPath(pathStr));
+    }
+
+    private static boolean pathMatches(String path, String prefix) {
+        if (path == null || prefix == null) return false;
+        if (path.equals(prefix)) return true;
+        String normalized = prefix.endsWith("/") ? prefix : prefix + "/";
+        return path.startsWith(normalized);
     }
 
     public String redirectPath(String path, Map<String, String> rule) {
@@ -138,8 +146,13 @@ public class IOCore {
                 rule.put("/sdcard", external.getAbsolutePath());
                 rule.put(String.format("/storage/emulated/%d", systemUserId), external.getAbsolutePath());
 
-                blackRule.add("/sdcard/Pictures");
-                blackRule.add(String.format("/storage/emulated/%d/Pictures", systemUserId));
+                if (SharedStorageConfig.has(packageName, BlackBoxCore.getUserId())) {
+                    String[] sharedDirs = {"Download", "Documents", "DCIM", "Movies", "Music", "Pictures"};
+                    for (String dir : sharedDirs) {
+                        blackRule.add("/sdcard/" + dir);
+                        blackRule.add(String.format("/storage/emulated/%d/%s", systemUserId, dir));
+                    }
+                }
             }
             if (BlackBoxCore.get().isHideRoot()) {
                 hideRoot(rule);
