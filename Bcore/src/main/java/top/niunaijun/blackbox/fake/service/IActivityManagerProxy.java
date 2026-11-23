@@ -31,6 +31,7 @@ import black.android.util.BRSingleton;
 import top.niunaijun.blackbox.BlackBoxCore;
 import top.niunaijun.blackbox.app.BActivityThread;
 import top.niunaijun.blackbox.core.env.AppSystemEnv;
+import top.niunaijun.blackbox.core.env.SharedStorageConfig;
 import top.niunaijun.blackbox.entity.AppConfig;
 import top.niunaijun.blackbox.entity.am.RunningAppProcessInfo;
 import top.niunaijun.blackbox.entity.am.RunningServiceInfo;
@@ -45,6 +46,7 @@ import top.niunaijun.blackbox.fake.hook.ProxyMethod;
 import top.niunaijun.blackbox.fake.hook.ScanClass;
 import top.niunaijun.blackbox.fake.service.base.PkgMethodProxy;
 import top.niunaijun.blackbox.fake.service.context.providers.ContentProviderStub;
+import top.niunaijun.blackbox.fake.service.context.providers.SafProviderStub;
 import top.niunaijun.blackbox.proxy.ProxyManifest;
 import top.niunaijun.blackbox.proxy.record.ProxyBroadcastRecord;
 import top.niunaijun.blackbox.proxy.record.ProxyPendingRecord;
@@ -139,6 +141,23 @@ public class IActivityManagerProxy extends ClassInvocationStub {
             if (auth instanceof String) {
                 if (ProxyManifest.isProxy((String) auth)) {
                     return method.invoke(who, args);
+                }
+
+                String authority = (String) auth;
+                if (SafProviderStub.AUTHORITY.equals(authority)
+                        && SharedStorageConfig.has(BActivityThread.getAppPackageName(), BActivityThread.getUserId())) {
+                    int callingPkgIndex = BuildCompat.isQ() ? 1 : 0;
+                    if (callingPkgIndex < args.length) {
+                        args[callingPkgIndex] = BlackBoxCore.getHostPkg();
+                    }
+                    if (getUserIndex() < args.length) {
+                        args[getUserIndex()] = BlackBoxCore.getHostUserId();
+                    }
+                    content = method.invoke(who, args);
+                    if (content != null) {
+                        ContentProviderDelegate.update(content, SafProviderStub.AUTHORITY);
+                    }
+                    return content;
                 }
 
                 if (BuildCompat.isQ()) {
@@ -761,6 +780,17 @@ public class IActivityManagerProxy extends ClassInvocationStub {
     public static class GrantUriPermission extends MethodHook {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            MethodParameterUtils.replaceFirstAppPkg(args);
+            MethodParameterUtils.replaceLastUid(args);
+            return method.invoke(who, args);
+        }
+    }
+
+    @ProxyMethod("revokeUriPermission")
+    public static class RevokeUriPermission extends MethodHook {
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            MethodParameterUtils.replaceFirstAppPkg(args);
             MethodParameterUtils.replaceLastUid(args);
             return method.invoke(who, args);
         }

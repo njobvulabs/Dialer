@@ -21,6 +21,7 @@ import black.android.providers.BRSettingsSecure;
 import black.android.providers.BRSettingsSystem;
 import top.niunaijun.blackbox.BlackBoxCore;
 import top.niunaijun.blackbox.fake.service.context.providers.ContentProviderStub;
+import top.niunaijun.blackbox.fake.service.context.providers.SafProviderStub;
 import top.niunaijun.blackbox.fake.service.context.providers.SystemProviderStub;
 import top.niunaijun.blackbox.utils.compat.BuildCompat;
 
@@ -45,6 +46,9 @@ public class ContentProviderDelegate {
             case "telephony":
             case "settings":
                 bContentProvider = new SystemProviderStub().wrapper(iInterface, BlackBoxCore.getHostPkg());
+                break;
+            case SafProviderStub.AUTHORITY:
+                bContentProvider = new SafProviderStub().wrapper(iInterface, BlackBoxCore.getHostPkg());
                 break;
             default:
                 bContentProvider = new ContentProviderStub().wrapper(iInterface, BlackBoxCore.getHostPkg());
