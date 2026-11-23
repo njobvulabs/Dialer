@@ -165,13 +165,13 @@
         severity="warning"
         message="Use version catalog instead">
         <fix-composite
-            description="Replace with new library catalog declaration for androidx-annotation"
+            description="Replace with new library catalog declaration for annotation"
             robot="true">
             <fix-replace
-                description="Replace with annotation = &quot;1.9.1&quot;..."
+                description="Replace with annotationVersion = &quot;1.9.1&quot;..."
                 robot="true"
                 oldString="_lint_insert_begin_"
-                replacement="annotation = &quot;1.9.1&quot;&#xA;"
+                replacement="annotationVersion = &quot;1.9.1&quot;&#xA;"
                 priority="0">
                 <range
                     file="$HOME/.sambashare/nj-dialer/gradle/libs.versions.toml"
@@ -179,20 +179,20 @@
                     endOffset="25"/>
             </fix-replace>
             <fix-replace
-                description="Replace with androidx-annotation = { module = &quot;androidx.annotation:annotation&quot;, version.ref = &quot;annotation&quot; }..."
+                description="Replace with annotation = { module = &quot;androidx.annotation:annotation&quot;, version.ref = &quot;annotationVersion&quot; }..."
                 robot="true"
                 oldString="_lint_insert_begin_"
-                replacement="androidx-annotation = { module = &quot;androidx.annotation:annotation&quot;, version.ref = &quot;annotation&quot; }&#xA;"
+                replacement="annotation = { module = &quot;androidx.annotation:annotation&quot;, version.ref = &quot;annotationVersion&quot; }&#xA;"
                 priority="0">
                 <range
                     file="$HOME/.sambashare/nj-dialer/gradle/libs.versions.toml"
-                    startOffset="1371"
-                    endOffset="1371"/>
+                    startOffset="1463"
+                    endOffset="1463"/>
             </fix-replace>
             <fix-replace
-                description="Replace with libs.androidx.annotation"
+                description="Replace with libs.annotation"
                 robot="true"
-                replacement="libs.androidx.annotation"
+                replacement="libs.annotation"
                 priority="0">
                 <range
                     file="${:terminal-view*projectDir}/build.gradle"
