@@ -1,0 +1,24 @@
+{
+  "manifest_version": 2,
+  "name": "nj-browser-controls",
+  "version": "1.7",
+  "description": "Page controls for the nj-dialer web apps (video detect, FB fit)",
+  "applications": {
+    "gecko": {
+      "id": "njbrowser@njdialer"
+    }
+  },
+  "permissions": ["nativeMessaging"],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "match_about_blank": true
+    }
+  ]
+}

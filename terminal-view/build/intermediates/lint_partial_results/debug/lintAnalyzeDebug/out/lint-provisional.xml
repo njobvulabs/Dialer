@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<incidents format="6" by="lint 9.1.1" type="conditional_incidents">
+
+    <incident
+        id="ObsoleteSdkInt"
+        severity="warning"
+        message="Unnecessary; `SDK_INT` is always >= 26">
+        <fix-replace
+            description="Delete @RequiresApi"
+            replacement=""
+            priority="0">
+            <range
+                file="${:terminal-view*debug*MAIN*sourceProvider*0*javaDir*0}/com/termux/view/TerminalView.java"
+                startOffset="3962"
+                endOffset="4003"/>
+        </fix-replace>
+        <location
+            file="${:terminal-view*debug*MAIN*sourceProvider*0*javaDir*0}/com/termux/view/TerminalView.java"
+            line="100"
+            column="5"
+            startOffset="3962"
+            endLine="100"
+            endColumn="46"
+            endOffset="4003"/>
+        <map>
+            <condition minGE="26-∞"/>
+        </map>
+    </incident>
+
+    <incident
+        id="ObsoleteSdkInt"
+        severity="warning"
+        message="Unnecessary; `SDK_INT` is always >= 26">
+        <fix-replace
+            description="Delete @RequiresApi"
+            replacement=""
+            priority="0">
+            <range
+                file="${:terminal-view*debug*MAIN*sourceProvider*0*javaDir*0}/com/termux/view/TerminalView.java"
+                startOffset="4769"
+                endOffset="4810"/>
+        </fix-replace>
+        <location
+            file="${:terminal-view*debug*MAIN*sourceProvider*0*javaDir*0}/com/termux/view/TerminalView.java"
+            line="114"
+            column="5"
+            startOffset="4769"
+            endLine="114"
+            endColumn="46"
+            endOffset="4810"/>
+        <map>
+            <condition minGE="26-∞"/>
+        </map>
+    </incident>
+
+    <incident
+        id="ObsoleteSdkInt"
+        severity="warning"
+        message="Unnecessary; `SDK_INT` is always >= 23">
+        <fix-replace
+            description="Delete @TargetApi"
+            replacement=""
+            priority="0">
+            <range
+                file="${:terminal-view*debug*MAIN*sourceProvider*0*javaDir*0}/com/termux/view/TerminalView.java"
+                startOffset="25849"
+                endOffset="25863"/>
+        </fix-replace>
+        <location
+            file="${:terminal-view*debug*MAIN*sourceProvider*0*javaDir*0}/com/termux/view/TerminalView.java"
+            line="594"
+            column="5"
+            startOffset="25849"
+            endLine="594"
+            endColumn="19"
+            endOffset="25863"/>
+        <map>
+            <condition minGE="23-∞"/>
+        </map>
+    </incident>
+
+    <incident
+        id="ObsoleteSdkInt"
+        severity="warning"
+        message="Unnecessary; `SDK_INT` is always >= 26">
+        <fix-replace
+            description="Delete @RequiresApi"
+            replacement=""
+            priority="0">
+            <range
+                file="${:terminal-view*debug*MAIN*sourceProvider*0*javaDir*0}/com/termux/view/TerminalView.java"
+                startOffset="49259"
+                endOffset="49300"/>
+        </fix-replace>
+        <location
+            file="${:terminal-view*debug*MAIN*sourceProvider*0*javaDir*0}/com/termux/view/TerminalView.java"
+            line="1050"
+            column="5"
+            startOffset="49259"
+            endLine="1050"
+            endColumn="46"
+            endOffset="49300"/>
+        <map>
+            <condition minGE="26-∞"/>
+        </map>
+    </incident>
+
+    <incident
+        id="ObsoleteSdkInt"
+        severity="warning"
+        message="Unnecessary; `SDK_INT` is always >= 26">
+        <fix-replace
+            description="Delete @RequiresApi"
+            replacement=""
+            priority="0">
+            <range
+                file="${:terminal-view*debug*MAIN*sourceProvider*0*javaDir*0}/com/termux/view/TerminalView.java"
+                startOffset="49505"
+                endOffset="49546"/>
+        </fix-replace>
+        <location
+            file="${:terminal-view*debug*MAIN*sourceProvider*0*javaDir*0}/com/termux/view/TerminalView.java"
+            line="1060"
+            column="5"
+            startOffset="49505"
+            endLine="1060"
+            endColumn="46"
+            endOffset="49546"/>
+        <map>
+            <condition minGE="26-∞"/>
+        </map>
+    </incident>
+
+    <incident
+        id="ObsoleteSdkInt"
+        severity="warning"
+        message="Unnecessary; `SDK_INT` is always >= 26">
+        <fix-replace
+            description="Delete @RequiresApi"
+            replacement=""
+            priority="0">
+            <range
+                file="${:terminal-view*debug*MAIN*sourceProvider*0*javaDir*0}/com/termux/view/TerminalView.java"
+                startOffset="49637"
+                endOffset="49678"/>
+        </fix-replace>
+        <location
+            file="${:terminal-view*debug*MAIN*sourceProvider*0*javaDir*0}/com/termux/view/TerminalView.java"
+            line="1066"
+            column="5"
+            startOffset="49637"
+            endLine="1066"
+            endColumn="46"
+            endOffset="49678"/>
+        <map>
+            <condition minGE="26-∞"/>
+        </map>
+    </incident>
+
+    <incident
+        id="ObsoleteSdkInt"
+        severity="warning"
+        message="Unnecessary; `SDK_INT` is always >= 26">
+        <fix-replace
+            description="Delete @RequiresApi"
+            replacement=""
+            priority="0">
+            <range
+                file="${:terminal-view*debug*MAIN*sourceProvider*0*javaDir*0}/com/termux/view/TerminalView.java"
+                startOffset="49776"
+                endOffset="49817"/>
+        </fix-replace>
+        <location
+            file="${:terminal-view*debug*MAIN*sourceProvider*0*javaDir*0}/com/termux/view/TerminalView.java"
+            line="1072"
+            column="5"
+            startOffset="49776"
+            endLine="1072"
+            endColumn="46"
+            endOffset="49817"/>
+        <map>
+            <condition minGE="26-∞"/>
+        </map>
+    </incident>
+
+    <incident
+        id="ObsoleteSdkInt"
+        severity="warning"
+        message="Unnecessary; `SDK_INT` is always >= 26">
+        <fix-replace
+            description="Delete @RequiresApi"
+            replacement=""
+            priority="0">
+            <range
+                file="${:terminal-view*debug*MAIN*sourceProvider*0*javaDir*0}/com/termux/view/TerminalView.java"
+                startOffset="49931"
+                endOffset="49972"/>
+        </fix-replace>
+        <location
+            file="${:terminal-view*debug*MAIN*sourceProvider*0*javaDir*0}/com/termux/view/TerminalView.java"
+            line="1078"
+            column="5"
+            startOffset="49931"
+            endLine="1078"
+            endColumn="46"
+            endOffset="49972"/>
+        <map>
+            <condition minGE="26-∞"/>
+        </map>
+    </incident>
+
+    <incident
+        id="ObsoleteSdkInt"
+        severity="warning"
+        message="Unnecessary; `SDK_INT` is always >= 26">
+        <fix-replace
+            description="Delete @RequiresApi"
+            replacement=""
+            priority="0">
+            <range
+                file="${:terminal-view*debug*MAIN*sourceProvider*0*javaDir*0}/com/termux/view/TerminalView.java"
+                startOffset="50077"
+                endOffset="50118"/>
+        </fix-replace>
+        <location
+            file="${:terminal-view*debug*MAIN*sourceProvider*0*javaDir*0}/com/termux/view/TerminalView.java"
+            line="1084"
+            column="5"
+            startOffset="50077"
+            endLine="1084"
+            endColumn="46"
+            endOffset="50118"/>
+        <map>
+            <condition minGE="26-∞"/>
+        </map>
+    </incident>
+
+</incidents>

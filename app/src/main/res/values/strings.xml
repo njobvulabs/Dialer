@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">nj-dialer</string>
+    <string name="admin_description">Prevents accidental uninstallation by activating nj-dialer as a device administrator.</string>
+    <string name="paste_text">Paste</string>
+    <string name="copy_text">Copy</string>
+    <string name="text_selection_more">More…</string>
+    <string name="shortcut_phone_short">Phone</string>
+    <string name="shortcut_phone_long">Open Phone</string>
+    <string name="shortcut_messages_short">Messages</string>
+    <string name="shortcut_messages_long">Open Messages</string>
+    <string name="shortcut_contacts_short">Contacts</string>
+    <string name="shortcut_contacts_long">Open Contacts</string>
+    <string name="shortcut_notes_short">Notes</string>
+    <string name="shortcut_notes_long">Open Notes</string>
+</resources>

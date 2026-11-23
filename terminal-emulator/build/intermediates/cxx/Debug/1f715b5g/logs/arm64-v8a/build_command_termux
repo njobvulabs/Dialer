@@ -1,0 +1,4 @@
+/opt/android-sdk/cmake/3.22.1/bin/ninja \
+  -C \
+  /home/njobvu/.sambashare/nj-dialer/terminal-emulator/.cxx/Debug/1f715b5g/arm64-v8a \
+  termux

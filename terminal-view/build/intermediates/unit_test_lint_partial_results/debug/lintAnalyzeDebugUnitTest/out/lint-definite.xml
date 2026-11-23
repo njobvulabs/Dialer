@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<incidents format="6" by="lint 9.1.1" type="incidents">
+
+    <incident
+        id="Aligned16KB"
+        severity="warning"
+        message="The native library `arm64-v8a/libtermux.so` (from `nj-dialer:terminal-emulator:unspecified`) is not 16 KB aligned">
+        <location
+            file="$GRADLE_USER_HOME/caches/9.9.0/transforms/15291640d52d17feba62033e5042218c/transformed/out/jni/arm64-v8a/libtermux.so"/>
+    </incident>
+
+</incidents>

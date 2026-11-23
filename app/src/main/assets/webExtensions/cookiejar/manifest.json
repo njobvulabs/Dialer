@@ -1,0 +1,15 @@
+{
+  "manifest_version": 2,
+  "name": "nj-cookie-exporter",
+  "version": "1.1",
+  "description": "Exports the GeckoView session's logged-in cookies (Netscape format) to the app so yt-dlp quick-downloads work from the web apps.",
+  "applications": {
+    "gecko": {
+      "id": "cookiejar@njdialer"
+    }
+  },
+  "permissions": ["cookies", "<all_urls>", "nativeMessaging"],
+  "background": {
+    "scripts": ["background.js"]
+  }
+}

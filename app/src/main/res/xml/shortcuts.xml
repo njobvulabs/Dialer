@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="open_phone"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_phone_short"
+        android:shortcutLongLabel="@string/shortcut_phone_long">
+        <intent
+            android:action="com.example.action.OPEN_SHORTCUT"
+            android:targetPackage="com.aistudio.phone.dialer.app"
+            android:targetClass="com.example.MainActivity">
+            <extra android:name="shortcut_target" android:value="phone" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="open_messages"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_messages_short"
+        android:shortcutLongLabel="@string/shortcut_messages_long">
+        <intent
+            android:action="com.example.action.OPEN_SHORTCUT"
+            android:targetPackage="com.aistudio.phone.dialer.app"
+            android:targetClass="com.example.MainActivity">
+            <extra android:name="shortcut_target" android:value="messages" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="open_contacts"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_contacts_short"
+        android:shortcutLongLabel="@string/shortcut_contacts_long">
+        <intent
+            android:action="com.example.action.OPEN_SHORTCUT"
+            android:targetPackage="com.aistudio.phone.dialer.app"
+            android:targetClass="com.example.MainActivity">
+            <extra android:name="shortcut_target" android:value="contacts" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="open_notes"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_notes_short"
+        android:shortcutLongLabel="@string/shortcut_notes_long">
+        <intent
+            android:action="com.example.action.OPEN_SHORTCUT"
+            android:targetPackage="com.aistudio.phone.dialer.app"
+            android:targetClass="com.example.MainActivity">
+            <extra android:name="shortcut_target" android:value="notes" />
+        </intent>
+    </shortcut>
+</shortcuts>
