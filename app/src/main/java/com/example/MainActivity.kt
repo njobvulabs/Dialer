@@ -71,6 +71,7 @@ import com.example.ui.screens.media.VideoPlayerScreen
 import com.example.ui.screens.media.VideoTabScreen
 import com.example.ui.screens.notes.NotesScreen
 import com.example.ui.screens.samba.SambaScreen
+import com.example.ui.screens.sandbox.SandboxScreen
 import com.example.ui.screens.settings.SettingsScreen
 import com.example.ui.screens.sys.SysScreen
 import com.example.ui.screens.wifishare.WifiShareScreen
@@ -451,7 +452,7 @@ fun MainAppContent(viewModel: MainViewModel) {
 
     val shadeBlockedRoutes = listOf(
         "camera", "screenrecorder", "terminal", "vnc", "hidoverlay", "hidlock",
-        "qrscanner", "scanpdf", "imageeditor", "ocr"
+        "qrscanner", "scanpdf", "imageeditor", "ocr", "sandbox"
     )
     val shadeAllowed = launcherQuickShadeEnabled &&
             !activeCallState.hasActiveCall &&
@@ -920,6 +921,7 @@ fun MainAppContent(viewModel: MainViewModel) {
                     )
                     "deviceinfo" -> DeviceInfoScreen(viewModel = viewModel)
                     "apkbackup" -> DeviceInfoScreen(viewModel = viewModel, initialTab = "apps")
+                    "sandbox" -> SandboxScreen(viewModel = viewModel)
                     "ocr" -> com.example.ui.screens.ocr.OcrScreen(
                         onClose = ::closeImmersive,
                         onTakePhotoFromCamera = {

@@ -1,25 +1,85 @@
 package com.example
 
 import android.app.Application
+import android.content.Context
+import android.os.Build
+import android.util.Log
 import com.example.util.CrashLog
+import top.niunaijun.blackbox.BlackBoxCore
+import top.niunaijun.blackbox.app.configuration.AppLifecycleCallback
+import top.niunaijun.blackbox.app.configuration.ClientConfiguration
+import top.niunaijun.blackbox.core.NativeCore
+import top.niunaijun.blackbox.utils.BBDiag
+import java.io.File
 
-/**
- * Per-process startup for every one of the app's OS processes.
- *
- * [CrashLog.install] has to happen here rather than in an Activity: a crash in a
- * private process (:webapps, :whatsapp, :whatsapp2) destroys the Activity and
- * restarts the process, so from the user's side the web app simply closed itself
- * with no visible reason. The previous handler only existed in MainActivity (main
- * process) and GeckoWebActivity (:whatsapp), which left :webapps — where the
- * Facebook web app runs — with no diagnostics at all.
- *
- * The yt-dlp payload is deliberately NOT extracted here. Doing that in every
- * process at startup spent ~29 MB of Python/FFmpeg extraction even when the user
- * never opened a downloader. It is now warmed from the download surfaces.
- */
 class NjApp : Application() {
+    private var blackBoxInitialized = false
+
+    override fun attachBaseContext(base: Context?) {
+        super.attachBaseContext(base)
+        CrashLog.install()
+        if (base == null) return
+
+        val process = processName(base)
+        if (!needsBlackBox(process, base.packageName)) return
+
+        runCatching { BBDiag.installCrashHandler(base) }
+            .onFailure { Log.e(TAG, "BBDiag install failed", it) }
+        runCatching { BlackBoxCore.get().closeCodeInit() }
+            .onFailure { Log.e(TAG, "closeCodeInit failed", it) }
+        runCatching { BlackBoxCore.get().onBeforeMainApplicationAttach(this, base) }
+            .onFailure { Log.e(TAG, "before application attach failed", it) }
+
+        runCatching {
+            BlackBoxCore.get().doAttachBaseContext(base, object : ClientConfiguration() {
+                override fun getHostPackageName(): String = base.packageName
+                override fun isEnableDaemonService(): Boolean = true
+                override fun isEnableLauncherActivity(): Boolean = true
+            })
+            BlackBoxCore.get().addAppLifecycleCallback(object : AppLifecycleCallback() {
+                override fun beforeCreateApplication(
+                    packageName: String?,
+                    processName: String?,
+                    context: Context?,
+                    userId: Int
+                ) {
+                    if (!packageName.isNullOrBlank()) {
+                        runCatching { NativeCore.cacheRealUid(packageName) }
+                            .onFailure { Log.e(TAG, "cacheRealUid failed", it) }
+                    }
+                }
+            })
+            blackBoxInitialized = true
+        }.onFailure { Log.e(TAG, "BlackBox attach failed", it) }
+
+        runCatching { BlackBoxCore.get().onAfterMainApplicationAttach(this, base) }
+            .onFailure { Log.e(TAG, "after application attach failed", it) }
+    }
+
     override fun onCreate() {
         super.onCreate()
         CrashLog.install()
+        if (!blackBoxInitialized) return
+        runCatching { BlackBoxCore.get().doCreate() }
+            .onFailure { Log.e(TAG, "BlackBox doCreate failed", it) }
+    }
+
+    private fun processName(context: Context): String =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            Application.getProcessName()
+        } else {
+            runCatching {
+                File("/proc/self/cmdline").readText().substringBefore('\u0000')
+            }.getOrNull()?.takeIf { it.isNotBlank() } ?: context.packageName
+        }
+
+    private fun needsBlackBox(process: String, packageName: String): Boolean {
+        val suffix = process.removePrefix(packageName)
+        return suffix.isEmpty() || suffix == ":black" || SANDBOX_PROXY_PROCESS.matches(suffix)
+    }
+
+    companion object {
+        private const val TAG = "NjApp"
+        private val SANDBOX_PROXY_PROCESS = Regex(":p\\d{1,2}")
     }
 }

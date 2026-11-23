@@ -20,6 +20,7 @@ dependencyResolutionManagement {
     google()
     mavenCentral()
     maven("https://maven.mozilla.org/maven2/")
+    maven("https://jitpack.io")
   }
 }
 
@@ -28,3 +29,6 @@ rootProject.name = "nj-dialer"
 include(":app")
 include(":terminal-emulator")
 include(":terminal-view")
+include(":Bcore")
+include(":black-reflection")
+include(":compiler")

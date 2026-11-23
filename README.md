@@ -498,7 +498,8 @@ Recorder**, and **BT Mouse & Keyboard sits just after Calculator**, followed by
 12. **Samba Server** — browse and stream network shares (see below).
 13. **Text Extract** — on-device OCR (ML Kit) with Copy/Share/Save-to-Notes.
 14. **APK Backup** — back up installed apps to APK files.
-15. **Phone Info** — device, battery, RAM/storage, network and sensor specs with
+15. **APK Sandbox** — run simple APKs in a virtual Android environment (see below).
+16. **Phone Info** — device, battery, RAM/storage, network and sensor specs with
     "Copy All Info".
 
 Most were moved out of the **File Manager ⋮ menu** (Samba, Wi-Fi Transfer, Phone Info,
@@ -560,6 +561,22 @@ host (or tap a saved host), port and optional password, then connect.
   never passed on the command line. **Exit & stop everything** also stops the desktop.
   The session installs into the same `filesDir/debian-rootfs` used by the Terminal, so
   re-running Terminal setup (a `SETUP_VERSION` bump) can remove it.
+
+### APK Sandbox
+Open **APK Sandbox** from the Tools group to install and run a selected APK inside a
+virtual Android environment. The app uses a SAF file picker, copies the APK into its own
+cache, installs it into the sandbox, and then lists sandboxed apps with **Launch**, **Stop**,
+**Clear**, **Info** and **Remove** actions. **Info** shows diagnostics that can be saved to
+`Download/NJCrash/` for troubleshooting.
+
+- **All-files access is required for reliable launches** — the screen shows the current
+  state and can open the system All files access settings for NJ-Dialer.
+- **Best for simple utility APKs** — apps that depend on Google Play services, Play
+  Integrity, banking/anti-tamper protections, or 32-bit-only native libraries are likely to
+  fail. Verified working on-device with a small notes APK.
+- **Not a security boundary** — sandboxed apps run in a separate `:sandbox0` process, but
+  they still use NJ-Dialer's UID and Android permissions. Do not treat it as isolation for
+  untrusted apps.
 
 ### Web Apps
 - The **Web apps** group on the Home grid holds all web-based apps, keeping the native tools

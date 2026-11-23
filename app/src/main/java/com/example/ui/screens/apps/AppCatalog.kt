@@ -58,6 +58,7 @@ val TOOLS: List<AppItem> = listOf(
     AppItem("qrscanner", "QR Scanner", AppIcons.QrCodeScanner, "Scan QR & barcodes", "qr,barcode,scan", "Tools"),
     AppItem("vault", "Vault", AppIcons.Lock, "Private file vault", "private,secure,encrypted,files", "Tools"),
     AppItem("apkbackup", "APK Backup", AppIcons.Backup, "Back up apps", "apk,backup,install", "Tools"),
+    AppItem("sandbox", "APK Sandbox", AppIcons.Android, "Run APKs in a virtual Android environment", "apk,sandbox,virtual,clone,test", "Tools"),
     AppItem("deviceinfo", "Phone Info", AppIcons.PhoneAndroid, "Device details", "info,battery,system", "Tools")
 )
 

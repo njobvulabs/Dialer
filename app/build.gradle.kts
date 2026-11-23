@@ -146,6 +146,7 @@ dependencies {
   implementation(libs.commons.compress)
   // Linux Terminal (PRoot): terminal emulator/view modules + xz rootfs extraction.
   implementation(project(":terminal-view"))
+  implementation(project(":Bcore"))
   implementation(libs.xz)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)

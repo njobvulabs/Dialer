@@ -20,6 +20,17 @@ object CrashLog {
     /** True once [install] has run in this process. */
     val isInstalled: Boolean get() = installed.get()
 
+    fun saveSandboxReport(report: String, packageName: String): File {
+        val dir = crashDir()
+        if (!dir.exists() && !dir.mkdirs()) {
+            throw IllegalStateException("Could not create NJCrash folder")
+        }
+        val safeName = packageName.replace(Regex("[^A-Za-z0-9._-]"), "_").ifBlank { "sandbox" }
+        val file = File(dir, "apk_sandbox_${safeName}_${System.currentTimeMillis()}.txt")
+        file.writeText(report)
+        return file
+    }
+
     fun install() {
         if (!installed.compareAndSet(false, true)) return
         val previous = Thread.getDefaultUncaughtExceptionHandler()
@@ -28,10 +39,7 @@ object CrashLog {
             // Never let the crash reporter itself throw: a failure here would
             // replace the real stack trace with one of our own.
             runCatching {
-                val dir = File(
-                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                    "NJCrash"
-                )
+                val dir = crashDir()
                 dir.mkdirs()
                 File(dir, "crash_${System.currentTimeMillis()}.txt").writeText(
                     "Time: ${System.currentTimeMillis()}\n" +
@@ -44,10 +52,15 @@ object CrashLog {
         }
     }
 
+    private fun crashDir(): File = File(
+        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+        "NJCrash"
+    )
+
     /**
      * Runtime process name (":whatsapp", ":webapps", …), or the package name in the
      * main process. Recorded with every crash because the symptom is
-     * process-specific — a crash in `:webapps` is what makes a web app appear to
+     * process-specific — a crash in `:whatsapp` is what makes a web app appear to
      * close itself, and the process is what tells the two apart.
      */
     private fun currentProcessName(): String =
