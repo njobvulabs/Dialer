@@ -564,13 +564,22 @@ host (or tap a saved host), port and optional password, then connect.
 
 ### APK Sandbox
 Open **APK Sandbox** from the Tools group to install and run a selected APK inside a
-virtual Android environment. The app uses a SAF file picker, copies the APK into its own
-cache, installs it into the sandbox, and then lists sandboxed apps with **Launch**, **Stop**,
-**Clear**, **Info** and **Remove** actions. **Info** shows diagnostics that can be saved to
+virtual Android environment. The app uses a SAF file picker, previews the APK's app name,
+package and version before installing, copies it into its own cache, installs it into the
+sandbox, and then lists sandboxed apps with **Launch**, **Stop**, **Clear**, **Info**,
+**App settings** and **Remove** actions. **Info** shows diagnostics that can be saved to
 `Download/NJCrash/` for troubleshooting.
 
 - **All-files access is required for reliable launches** — the screen shows the current
   state and can open the system All files access settings for NJ-Dialer.
+- **App settings open in NJ-Dialer** — each sandboxed app's ⋮ menu has **App settings**, and
+  when a sandboxed app opens Android's App Info, notification, storage, battery, or
+  app-details settings, NJ-Dialer opens its own sandbox settings screen for that virtual app
+  with the same launch, stop, data, diagnostics, permissions, and storage controls.
+- **Install and launch errors are explained** — install preflight rejects sandboxing
+  NJ-Dialer itself or reinstalling an existing package, and launch failures show a specific
+  reason when an app needs all-files access, 32-bit native libraries, or a relaunch after a
+  storage-mode change.
 - **Shared folders are opt-in per app** — each app’s ⋮ menu can switch between virtual
   storage and passthrough for `Download`, `Documents`, `DCIM`, `Movies`, `Music`, and
   `Pictures`. The app is stopped when the mode changes and must be relaunched. In shared

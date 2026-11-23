@@ -80,7 +80,7 @@ import top.niunaijun.blackbox.utils.LogSender;
 public class BlackBoxCore extends ClientConfiguration {
     public static final String TAG = "BlackBoxCore";
     /** Bumped with every launch-fix build so an on-screen diagnostic identifies the installed APK. */
-    public static final String DIAG_BUILD = "bb-4.0.9-shortcuts";
+    public static final String DIAG_BUILD = "bb-4.0.9-appsettings";
 
     private static final BlackBoxCore sBlackBoxCore = new BlackBoxCore();
     private static Context sContext;

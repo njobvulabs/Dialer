@@ -65,21 +65,10 @@ import com.example.ui.components.SearchIconButton
 import com.example.ui.components.SectionCard
 import com.example.ui.components.landscapeContentWidth
 import com.example.util.AssistantActions
-import com.example.util.CrashLog
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import top.niunaijun.blackbox.BlackBoxCore
-import java.io.File
 import java.text.DateFormat
 import java.util.Date
-
-private data class SandboxApp(
-    val packageName: String,
-    val label: String,
-    val version: String,
-    val sharedStorage: Boolean = false
-)
 
 private enum class SandboxSortMode(val label: String) {
     Name("Name"),
@@ -122,6 +111,7 @@ fun SandboxScreen(viewModel: MainViewModel) {
     var actionMenuFor by remember { mutableStateOf<String?>(null) }
     var confirmUninstall by remember { mutableStateOf<String?>(null) }
     var confirmClear by remember { mutableStateOf<String?>(null) }
+    var pendingInstall by remember { mutableStateOf<SandboxApkInspection?>(null) }
     var diagnostics by remember { mutableStateOf<String?>(null) }
     var diagnosticsTitle by remember { mutableStateOf("Sandbox diagnostics") }
     var diagnosticsApp by remember { mutableStateOf<SandboxApp?>(null) }
@@ -136,139 +126,44 @@ fun SandboxScreen(viewModel: MainViewModel) {
 
     fun refreshApps() {
         scope.launch {
-            var listError: String? = null
-            val loaded = withContext(Dispatchers.IO) {
-                runCatching {
-                    BlackBoxCore.get().getInstalledPackages(0, 0).orEmpty().map { info ->
-                        val label = runCatching {
-                            info.applicationInfo?.loadLabel(context.packageManager)?.toString()
-                        }.getOrNull()?.takeIf { it.isNotBlank() } ?: info.packageName
-                        val version = listOfNotNull(info.versionName, info.versionCode.toString())
-                            .joinToString(" (")
-                            .plus(if (info.versionName != null) ")" else "")
-                        val sharedStorage = runCatching {
-                            BlackBoxCore.get().hasSharedInternalStorageAccess(info.packageName, 0)
-                        }.getOrDefault(false)
-                        SandboxApp(info.packageName, label, version, sharedStorage)
-                    }
-                }.getOrElse { e ->
-                    listError = "Could not list sandbox apps: ${errorText(e)}"
-                    emptyList()
-                }
-            }
-            val granted = withContext(Dispatchers.IO) {
-                runCatching { BlackBoxCore.get().hasAllFilesAccess() }.getOrDefault(false)
-            }
-            apps = loaded
-            allFilesGranted = granted
-            listError?.let { setStatus(it, SandboxStatusTone.Error) }
+            val loaded = runCatching { SandboxActions.loadApps(context, 0) }
+            allFilesGranted = SandboxActions.hasAllFilesAccess()
+            loaded.fold(
+                onSuccess = { apps = it },
+                onFailure = { setStatus("Could not list sandbox apps: ${errorText(it)}", SandboxStatusTone.Error) }
+            )
         }
     }
 
-    fun installApk(uri: Uri) {
+    fun inspectApk(uri: Uri) {
         scope.launch {
             busy = true
-            setStatus("Copying APK…")
-            val result = withContext(Dispatchers.IO) {
-                runCatching {
-                    val temp = File(context.cacheDir, "sandbox_${System.currentTimeMillis()}.apk")
-                    val input = context.contentResolver.openInputStream(uri)
-                        ?: throw IllegalStateException("Could not open the selected APK")
-                    input.use { source -> temp.outputStream().use { source.copyTo(it) } }
-                    val installResult = BlackBoxCore.get().installPackageAsUser(temp, 0)
-                    runCatching { temp.delete() }
-                    installResult
-                }
-            }
-            result.onSuccess { install ->
-                if (install.success) {
-                    setStatus("Installed ${install.packageName ?: "APK"} in the sandbox.", SandboxStatusTone.Success)
-                } else {
-                    setStatus("Install failed: ${install.msg ?: "unknown error"}", SandboxStatusTone.Error)
-                }
-            }.onFailure { e ->
-                setStatus("Install failed: ${errorText(e)}", SandboxStatusTone.Error)
-            }
+            setStatus("Reading APK…")
+            val inspection = SandboxActions.inspectApk(context, uri, 0)
             busy = false
+            if (inspection.error != null) {
+                SandboxActions.discardInspection(inspection)
+                setStatus(inspection.error, SandboxStatusTone.Error)
+            } else {
+                pendingInstall = inspection
+            }
+        }
+    }
+
+    fun installApk(inspection: SandboxApkInspection) {
+        scope.launch {
+            busy = true
+            setStatus("Installing ${inspection.preview?.label ?: "APK"}…")
+            val result = SandboxActions.installApk(inspection, 0)
+            busy = false
+            pendingInstall = null
+            setStatus(result.message, if (result.ok) SandboxStatusTone.Success else SandboxStatusTone.Error)
             refreshApps()
         }
     }
 
     val apkPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) installApk(uri)
-    }
-
-    fun launchApp(app: SandboxApp) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !allFilesGranted) {
-            pendingLaunchAfterGrant = app.packageName
-            setStatus("All files access is not granted. Grant access to launch ${app.label}.", SandboxStatusTone.Error)
-            return
-        }
-        pendingLaunchAfterGrant = null
-        scope.launch {
-            busy = true
-            setStatus("Launching ${app.label}…")
-            val launched = withContext(Dispatchers.IO) {
-                runCatching { BlackBoxCore.get().launchApk(app.packageName, 0) }
-            }
-            val ok = launched.getOrDefault(false)
-            val launchError = BlackBoxCore.get().lastLaunchError
-            when {
-                launched.isFailure -> setStatus(
-                    "Launch failed: ${errorText(launched.exceptionOrNull()!!)}",
-                    SandboxStatusTone.Error
-                )
-                ok -> setStatus("Launched ${app.label}.", SandboxStatusTone.Success)
-                launchError?.contains("no_all_files_access") == true -> {
-                    pendingLaunchAfterGrant = app.packageName
-                    setStatus("All files access is required. Grant access and retry.", SandboxStatusTone.Error)
-                }
-                else -> setStatus("Launch failed: ${launchError ?: "unknown error"}", SandboxStatusTone.Error)
-            }
-            busy = false
-        }
-    }
-
-    fun stopApp(app: SandboxApp) {
-        scope.launch {
-            val result = withContext(Dispatchers.IO) {
-                runCatching { BlackBoxCore.get().stopPackage(app.packageName, 0) }
-            }
-            result.fold(
-                onSuccess = { setStatus("Stop requested for ${app.label}.", SandboxStatusTone.Info) },
-                onFailure = { setStatus("Could not request stop: ${errorText(it)}", SandboxStatusTone.Error) }
-            )
-        }
-    }
-
-    fun clearApp(app: SandboxApp) {
-        scope.launch {
-            val result = withContext(Dispatchers.IO) {
-                runCatching { BlackBoxCore.get().clearPackage(app.packageName, 0) }
-            }
-            result.fold(
-                onSuccess = { setStatus("Clear requested for ${app.label}.", SandboxStatusTone.Info) },
-                onFailure = { setStatus("Could not request clear: ${errorText(it)}", SandboxStatusTone.Error) }
-            )
-        }
-    }
-
-    fun uninstallApp(app: SandboxApp) {
-        scope.launch {
-            val result = withContext(Dispatchers.IO) {
-                runCatching {
-                    BlackBoxCore.get().uninstallPackageAsUser(app.packageName, 0)
-                    BlackBoxCore.get().setSharedInternalStorageAccess(app.packageName, 0, false)
-                }
-            }
-            result.fold(
-                onSuccess = {
-                    setStatus("Removal requested for ${app.label}.", SandboxStatusTone.Info)
-                    refreshApps()
-                },
-                onFailure = { setStatus("Could not request removal: ${errorText(it)}", SandboxStatusTone.Error) }
-            )
-        }
+        if (uri != null) inspectApk(uri)
     }
 
     fun openAllFilesAccess(retryPackage: String? = null) {
@@ -288,34 +183,77 @@ fun SandboxScreen(viewModel: MainViewModel) {
         }
     }
 
+    fun launchApp(app: SandboxApp) {
+        if (SandboxActions.needsAllFilesAccessPrompt() && !allFilesGranted) {
+            pendingLaunchAfterGrant = app.packageName
+            setStatus(SandboxActions.allFilesAccessMessage(), SandboxStatusTone.Error)
+            openAllFilesAccess(app.packageName)
+            return
+        }
+        pendingLaunchAfterGrant = null
+        scope.launch {
+            busy = true
+            setStatus("Launching ${app.label}…")
+            val result = SandboxActions.launch(app.packageName, app.label, 0, allFilesGranted)
+            busy = false
+            if (result.needsAllFilesAccess) {
+                pendingLaunchAfterGrant = app.packageName
+                openAllFilesAccess(app.packageName)
+            }
+            setStatus(result.message, if (result.ok) SandboxStatusTone.Success else SandboxStatusTone.Error)
+        }
+    }
+
+    fun stopApp(app: SandboxApp) {
+        scope.launch {
+            val result = SandboxActions.stop(app.packageName, app.label, 0)
+            setStatus(result.message, if (result.ok) SandboxStatusTone.Info else SandboxStatusTone.Error)
+        }
+    }
+
+    fun clearApp(app: SandboxApp) {
+        scope.launch {
+            val result = SandboxActions.clear(app.packageName, app.label, 0)
+            setStatus(result.message, if (result.ok) SandboxStatusTone.Info else SandboxStatusTone.Error)
+        }
+    }
+
+    fun uninstallApp(app: SandboxApp) {
+        scope.launch {
+            val result = SandboxActions.remove(app.packageName, app.label, 0)
+            setStatus(result.message, if (result.ok) SandboxStatusTone.Success else SandboxStatusTone.Error)
+            if (result.ok) refreshApps()
+        }
+    }
+
+    fun openAppSettings(app: SandboxApp) {
+        runCatching { context.startActivity(SandboxAppSettingsActivity.intent(context, app.packageName)) }
+            .onFailure { setStatus("Could not open app settings: ${errorText(it)}", SandboxStatusTone.Error) }
+    }
+
     fun setSharedStorage(app: SandboxApp, enabled: Boolean) {
-        if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !allFilesGranted) {
+        if (enabled && SandboxActions.needsAllFilesAccessPrompt() && !allFilesGranted) {
             pendingStorageToggle = app.packageName to enabled
-            setStatus("Grant all files access before enabling shared folders.", SandboxStatusTone.Error)
+            setStatus(SandboxActions.allFilesAccessMessage(), SandboxStatusTone.Error)
             openAllFilesAccess(app.packageName)
             return
         }
         scope.launch {
-            val result = withContext(Dispatchers.IO) {
-                runCatching {
-                    BlackBoxCore.get().setSharedInternalStorageAccess(app.packageName, 0, enabled)
-                    BlackBoxCore.get().stopPackage(app.packageName, 0)
-                    BlackBoxCore.get().hasSharedInternalStorageAccess(app.packageName, 0)
+            val result = SandboxActions.setSharedStorage(app.packageName, app.label, 0, enabled, allFilesGranted)
+            if (result.needsAllFilesAccess) {
+                pendingStorageToggle = app.packageName to enabled
+                openAllFilesAccess(app.packageName)
+            }
+            if (result.ok) {
+                apps = apps.map {
+                    if (it.packageName == app.packageName) {
+                        it.copy(sharedStorage = runCatching {
+                            BlackBoxCore.get().hasSharedInternalStorageAccess(app.packageName, 0)
+                        }.getOrDefault(it.sharedStorage))
+                    } else it
                 }
             }
-            result.fold(
-                onSuccess = { active ->
-                    apps = apps.map {
-                        if (it.packageName == app.packageName) it.copy(sharedStorage = active) else it
-                    }
-                    setStatus(
-                        if (active) "Shared folders enabled for ${app.label}. Relaunch it to apply."
-                        else "Virtual storage restored for ${app.label}. Relaunch it to apply.",
-                        SandboxStatusTone.Success
-                    )
-                },
-                onFailure = { setStatus("Could not change storage access: ${errorText(it)}", SandboxStatusTone.Error) }
-            )
+            setStatus(result.message, if (result.ok) SandboxStatusTone.Success else SandboxStatusTone.Error)
         }
     }
 
@@ -325,20 +263,12 @@ fun SandboxScreen(viewModel: MainViewModel) {
         diagnosticsSaveStatus = null
         diagnostics = "Loading…"
         scope.launch {
-            val result = withContext(Dispatchers.IO) {
-                if (app == null) {
-                    runCatching { BlackBoxCore.get().getEnvironmentReport() }
-                } else {
-                    runCatching { BlackBoxCore.get().getDiagnosticReport(app.packageName, 0) }
-                }
+            val result = if (app == null) {
+                SandboxActions.environmentReport()
+            } else {
+                SandboxActions.diagnosticReport(app.packageName, 0)
             }
-            result.fold(
-                onSuccess = { diagnostics = it },
-                onFailure = {
-                    diagnostics = "Diagnostics failed: ${errorText(it)}"
-                    setStatus("Diagnostics failed: ${errorText(it)}", SandboxStatusTone.Error)
-                }
-            )
+            diagnostics = result
         }
     }
 
@@ -346,18 +276,9 @@ fun SandboxScreen(viewModel: MainViewModel) {
         val report = diagnostics ?: return
         val packageName = diagnosticsApp?.packageName ?: "sandbox"
         scope.launch {
-            val saved = withContext(Dispatchers.IO) {
-                runCatching { CrashLog.saveSandboxReport(report, packageName).absolutePath }
-            }
-            val message = saved.fold(
-                onSuccess = { path -> "Saved to $path" },
-                onFailure = { e -> "Could not save: ${errorText(e)}" }
-            )
+            val message = SandboxActions.saveReport(context, report, packageName)
             diagnosticsSaveStatus = message
-            setStatus(
-                message,
-                if (saved.isSuccess) SandboxStatusTone.Success else SandboxStatusTone.Error
-            )
+            setStatus(message, if (message.startsWith("Saved")) SandboxStatusTone.Success else SandboxStatusTone.Error)
         }
     }
 
@@ -370,52 +291,8 @@ fun SandboxScreen(viewModel: MainViewModel) {
 
     fun exportCrashLogs() {
         scope.launch {
-            val saved = withContext(Dispatchers.IO) {
-                runCatching {
-                    val report = StringBuilder()
-                    fun appendFile(title: String, file: File, maxChars: Int = 30000) {
-                        report.append("\n=== ").append(title).append(" ===\n")
-                        if (!file.exists()) {
-                            report.append("(missing: ").append(file.absolutePath).append(")\n")
-                            return
-                        }
-                        val text = runCatching { file.readText() }.getOrDefault("(unreadable)")
-                        if (text.length > maxChars) {
-                            report.append("(truncated, last ").append(maxChars).append(" chars)\n")
-                            report.append(text.takeLast(maxChars))
-                        } else {
-                            report.append(text)
-                        }
-                    }
-
-                    val diagDir = File(context.filesDir, "bb_diag")
-                    appendFile("BBDiag crash", File(diagDir, "crash.txt"))
-                    appendFile("BBDiag stage", File(diagDir, "stage.txt"), 4000)
-                    appendFile("BBDiag trace", File(diagDir, "trace.log"))
-
-                    val crashDir = File(context.filesDir, "crash_logs")
-                    val logs = crashDir.listFiles { file ->
-                        file.isFile && file.name.endsWith(".log", ignoreCase = true)
-                    }.orEmpty().sortedByDescending { it.lastModified() }.take(8)
-                    if (logs.isEmpty()) {
-                        report.append("\n=== CrashMonitor logs ===\n(no logs in ")
-                            .append(crashDir.absolutePath).append(")\n")
-                    } else {
-                        logs.forEachIndexed { index, file ->
-                            appendFile("CrashMonitor ${index + 1}: ${file.name}", file)
-                        }
-                    }
-                    CrashLog.saveSandboxReport(report.toString(), "crashlogs").absolutePath
-                }
-            }
-            val message = saved.fold(
-                onSuccess = { path -> "Saved crash logs to $path" },
-                onFailure = { e -> "Could not export crash logs: ${errorText(e)}" }
-            )
-            setStatus(
-                message,
-                if (saved.isSuccess) SandboxStatusTone.Success else SandboxStatusTone.Error
-            )
+            val message = SandboxActions.exportCrashLogs(context, null, 0)
+            setStatus(message, if (message.startsWith("Saved")) SandboxStatusTone.Success else SandboxStatusTone.Error)
         }
     }
 
@@ -424,7 +301,7 @@ fun SandboxScreen(viewModel: MainViewModel) {
         val pending = pendingLaunchAfterGrant
         val pendingToggle = pendingStorageToggle
         if (pending == null && pendingToggle == null) return
-        val granted = runCatching { BlackBoxCore.get().hasAllFilesAccess() }.getOrDefault(false)
+        val granted = SandboxActions.hasAllFilesAccess()
         if (!granted) return
         allFilesGranted = true
         if (pendingToggle != null) {
@@ -514,7 +391,8 @@ fun SandboxScreen(viewModel: MainViewModel) {
                 item {
                     SectionCard(title = "Install an APK") {
                         Text(
-                            "Runs simple utility APKs in a virtual Android environment. " +
+                            "Runs simple utility APKs in a virtual Android environment. This is not a security boundary: " +
+                                "sandboxed apps share NJ-Dialer's UID and permissions, and shared folders are not private. " +
                                 "Banking apps, Play Integrity apps, Google services and 32-bit-only apps are likely to fail.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -700,6 +578,14 @@ fun SandboxScreen(viewModel: MainViewModel) {
                                             }
                                         )
                                         DropdownMenuItem(
+                                            text = { Text("App settings") },
+                                            leadingIcon = { Icon(AppIcons.Settings, contentDescription = null) },
+                                            onClick = {
+                                                actionMenuFor = null
+                                                openAppSettings(app)
+                                            }
+                                        )
+                                        DropdownMenuItem(
                                             text = { Text("Stop") },
                                             leadingIcon = { Icon(AppIcons.Stop, contentDescription = null) },
                                             onClick = {
@@ -759,6 +645,42 @@ fun SandboxScreen(viewModel: MainViewModel) {
                 }
             }
         }
+    }
+
+    pendingInstall?.let { inspection ->
+        val preview = inspection.preview
+        AlertDialog(
+            onDismissRequest = {
+                SandboxActions.discardInspection(inspection)
+                pendingInstall = null
+            },
+            title = { Text("Install in sandbox?") },
+            text = {
+                Column {
+                    Text(
+                        "Review this APK before installing it into the virtual environment.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Text("App: ${preview?.label ?: "Unknown"}")
+                    Text("Package: ${preview?.packageName ?: "Unknown"}")
+                    Text("Version: ${preview?.version ?: "Unknown"}")
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { installApk(inspection) },
+                    enabled = !busy
+                ) { Text(if (busy) "Installing…" else "Install") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    SandboxActions.discardInspection(inspection)
+                    pendingInstall = null
+                }) { Text("Cancel") }
+            }
+        )
     }
 
     confirmClear?.let { pkg ->

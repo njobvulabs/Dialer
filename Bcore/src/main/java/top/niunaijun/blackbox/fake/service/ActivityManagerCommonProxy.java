@@ -7,6 +7,7 @@ import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.provider.Settings;
 
 import java.io.File;
 import java.lang.reflect.Method;
@@ -16,6 +17,7 @@ import top.niunaijun.blackbox.app.BActivityThread;
 import top.niunaijun.blackbox.fake.hook.MethodHook;
 import top.niunaijun.blackbox.fake.hook.ProxyMethod;
 import top.niunaijun.blackbox.fake.provider.FileProviderHandler;
+import top.niunaijun.blackbox.utils.BBDiag;
 import top.niunaijun.blackbox.utils.ComponentUtils;
 import top.niunaijun.blackbox.utils.MethodParameterUtils;
 import top.niunaijun.blackbox.utils.Slog;
@@ -27,6 +29,16 @@ import static android.content.pm.PackageManager.GET_META_DATA;
 
 public class ActivityManagerCommonProxy {
     public static final String TAG = "CommonStub";
+    private static final String SANDBOX_SETTINGS_ACTIVITY =
+            "com.example.ui.screens.sandbox.SandboxAppSettingsActivity";
+    private static final String EXTRA_VIRTUAL_PACKAGE =
+            "com.example.sandbox.extra.VIRTUAL_PACKAGE";
+    private static final String EXTRA_VIRTUAL_USER_ID =
+            "com.example.sandbox.extra.VIRTUAL_USER_ID";
+    private static final String EXTRA_SETTINGS_ACTION =
+            "com.example.sandbox.extra.SETTINGS_ACTION";
+    private static final String EXTRA_SETTINGS_DATA =
+            "com.example.sandbox.extra.SETTINGS_DATA";
 
     @ProxyMethod("startActivity")
     public static class StartActivity extends MethodHook {
@@ -36,7 +48,10 @@ public class ActivityManagerCommonProxy {
             Intent intent = getIntent(args);
             Slog.d(TAG, "Hook in : " + intent);
             assert intent != null;
-            
+
+            if (maybeRedirectAppSettings(intent)) {
+                return method.invoke(who, args);
+            }
             
             if (intent.getParcelableExtra("_B_|_target_") != null) {
                 return method.invoke(who, args);
@@ -69,7 +84,14 @@ public class ActivityManagerCommonProxy {
                 return method.invoke(who, args);
             }
             String dataString = intent.getDataString();
-            if (dataString != null && dataString.equals("package:" + BActivityThread.getAppPackageName())) {
+            String guestPackage = BActivityThread.getAppPackageName();
+            if (dataString != null && guestPackage != null
+                    && dataString.equals("package:" + guestPackage)) {
+                BBDiag.trace(TAG, "packageUri action=" + intent.getAction()
+                        + " data=" + dataString
+                        + " explicitPackage=" + intent.getPackage()
+                        + " guest=" + guestPackage
+                        + " -> host=" + BlackBoxCore.getHostPkg());
                 intent.setData(Uri.parse("package:" + BlackBoxCore.getHostPkg()));
             }
 
@@ -108,6 +130,53 @@ public class ActivityManagerCommonProxy {
                     StartActivityCompat.getFlags(args),
                     StartActivityCompat.getOptions(args));
             return 0;
+        }
+
+        private boolean maybeRedirectAppSettings(Intent intent) {
+            if (intent == null) return false;
+            String action = intent.getAction();
+            if (action == null) return false;
+            boolean knownAction = Settings.ACTION_APPLICATION_DETAILS_SETTINGS.equals(action)
+                    || Settings.ACTION_APPLICATION_SETTINGS.equals(action)
+                    || Settings.ACTION_APP_NOTIFICATION_SETTINGS.equals(action)
+                    || Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION.equals(action)
+                    || Settings.ACTION_MANAGE_WRITE_SETTINGS.equals(action)
+                    || Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS.equals(action);
+            if (!knownAction) return false;
+
+            String guestPackage = BActivityThread.getAppPackageName();
+            if (guestPackage == null) return false;
+            Uri data = intent.getData();
+            String dataPackage = null;
+            if (data != null && "package".equalsIgnoreCase(data.getScheme())) {
+                dataPackage = data.getSchemeSpecificPart();
+            }
+            String extraPackage = intent.getStringExtra(Settings.EXTRA_APP_PACKAGE);
+            if (extraPackage == null) {
+                extraPackage = intent.getStringExtra("android.intent.extra.PACKAGE_NAME");
+            }
+            if (!guestPackage.equals(dataPackage) && !guestPackage.equals(extraPackage)) {
+                return false;
+            }
+
+            String originalData = data == null ? null : data.toString();
+            BBDiag.trace(TAG, "appSettings action=" + action
+                    + " data=" + originalData
+                    + " explicitPackage=" + intent.getPackage()
+                    + " extraPackage=" + extraPackage
+                    + " guest=" + guestPackage
+                    + " -> sandboxSettingsActivity");
+            intent.setData(null);
+            intent.setPackage(null);
+            intent.setSelector(null);
+            intent.setComponent(new ComponentName(
+                    BlackBoxCore.getHostPkg(), SANDBOX_SETTINGS_ACTIVITY));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            intent.putExtra(EXTRA_VIRTUAL_PACKAGE, guestPackage);
+            intent.putExtra(EXTRA_VIRTUAL_USER_ID, BActivityThread.getUserId());
+            intent.putExtra(EXTRA_SETTINGS_ACTION, action);
+            intent.putExtra(EXTRA_SETTINGS_DATA, originalData);
+            return true;
         }
 
         private Intent getIntent(Object[] args) {

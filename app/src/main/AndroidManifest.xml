@@ -210,6 +210,13 @@
             android:taskAffinity=""
             android:theme="@style/Theme.MyApplication.Transparent" />
 
+        <activity
+            android:name=".ui.screens.sandbox.SandboxAppSettingsActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/Theme.MyApplication" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
