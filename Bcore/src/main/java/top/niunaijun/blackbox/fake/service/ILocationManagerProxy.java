@@ -65,6 +65,13 @@ public class ILocationManagerProxy extends BinderInvocationStub {
         return super.invoke(proxy, method, args);
     }
 
+    private static BLocation currentFakeLocation() {
+        if (!BLocationManager.isFakeLocationEnable()) {
+            return null;
+        }
+        return BLocationManager.get().getLocation(BActivityThread.getUserId(), BActivityThread.getAppPackageName());
+    }
+
     @ProxyMethod("registerGnssStatusCallback")
     public static class RegisterGnssStatusCallback extends MethodHook {
 
@@ -80,8 +87,9 @@ public class ILocationManagerProxy extends BinderInvocationStub {
 
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            if (BLocationManager.isFakeLocationEnable()) {
-                return BLocationManager.get().getLocation(BActivityThread.getUserId(), BActivityThread.getAppPackageName()).convert2SystemLocation();
+            BLocation location = currentFakeLocation();
+            if (location != null) {
+                return location.convert2SystemLocation();
             }
             
             
@@ -102,8 +110,9 @@ public class ILocationManagerProxy extends BinderInvocationStub {
 
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            if (BLocationManager.isFakeLocationEnable()) {
-                return BLocationManager.get().getLocation(BActivityThread.getUserId(), BActivityThread.getAppPackageName()).convert2SystemLocation();
+            BLocation location = currentFakeLocation();
+            if (location != null) {
+                return location.convert2SystemLocation();
             }
             
             
@@ -165,13 +174,13 @@ public class ILocationManagerProxy extends BinderInvocationStub {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             Object providerProperties = method.invoke(who, args);
-            if (BLocationManager.isFakeLocationEnable()) {
+            if (providerProperties != null && BLocationManager.isFakeLocationEnable()) {
                 BRProviderProperties.get(providerProperties)._set_mHasNetworkRequirement(false);
                 if (BLocationManager.get().getCell(BActivityThread.getUserId(), BActivityThread.getAppPackageName()) == null) {
                     BRProviderProperties.get(providerProperties)._set_mHasCellRequirement(false);
                 }
             }
-            return method.invoke(who, args);
+            return providerProperties;
         }
     }
 

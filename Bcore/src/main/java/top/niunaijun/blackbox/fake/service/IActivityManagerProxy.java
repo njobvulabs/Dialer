@@ -132,6 +132,16 @@ public class IActivityManagerProxy extends ClassInvocationStub {
 
     @ProxyMethod("getContentProvider")
     public static class GetContentProvider extends MethodHook {
+        private static boolean keepSafBridgeEnabled() {
+            try {
+                return BlackBoxCore.getContext()
+                        .getSharedPreferences("sandbox", Context.MODE_PRIVATE)
+                        .getBoolean("keep_saf_bridge_with_any_shared_folder", true);
+            } catch (Throwable ignored) {
+                return true;
+            }
+        }
+
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             int authIndex = getAuthIndex();
@@ -145,6 +155,7 @@ public class IActivityManagerProxy extends ClassInvocationStub {
 
                 String authority = (String) auth;
                 if (SafProviderStub.AUTHORITY.equals(authority)
+                        && keepSafBridgeEnabled()
                         && SharedStorageConfig.has(BActivityThread.getAppPackageName(), BActivityThread.getUserId())) {
                     int callingPkgIndex = BuildCompat.isQ() ? 1 : 0;
                     if (callingPkgIndex < args.length) {
@@ -839,8 +850,11 @@ public class IActivityManagerProxy extends ClassInvocationStub {
                     || permission.equals(Manifest.permission.SEND_SMS)) {
                 return PackageManager.PERMISSION_GRANTED;
             }
-            
-            
+
+            if (isNetworkPermission(permission)) {
+                return PackageManager.PERMISSION_GRANTED;
+            }
+
             if (isAudioPermission(permission)) {
                 Slog.d(TAG, "ActivityManager checkPermission: Granting audio permission: " + permission);
                 return PackageManager.PERMISSION_GRANTED;
@@ -856,7 +870,12 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         }
     }
 
-    
+    private static boolean isNetworkPermission(String permission) {
+        if (permission == null) return false;
+        return permission.equals(Manifest.permission.INTERNET)
+                || permission.equals(Manifest.permission.ACCESS_NETWORK_STATE);
+    }
+
     private static boolean isAudioPermission(String permission) {
         if (permission == null) return false;
         return permission.equals(Manifest.permission.RECORD_AUDIO)

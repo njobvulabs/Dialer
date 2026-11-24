@@ -19,6 +19,7 @@ import android.os.Parcel;
 import android.os.Parcelable;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Map;
 
 import top.niunaijun.blackbox.entity.pm.InstallOption;
@@ -47,6 +48,7 @@ public class BPackage implements Parcelable {
     public ApplicationInfo applicationInfo;
     public String mVersionName;
     public String baseCodePath;
+    public ArrayList<String> splitCodePaths = new ArrayList<String>();
 
     public int mSharedUserLabel;
     
@@ -70,6 +72,9 @@ public class BPackage implements Parcelable {
         pkg.packageName = pi.packageName;
         pkg.applicationInfo = pi.applicationInfo;
         pkg.baseCodePath = baseCodePath;
+        if (pi.applicationInfo != null && pi.applicationInfo.splitSourceDirs != null) {
+            Collections.addAll(pkg.splitCodePaths, pi.applicationInfo.splitSourceDirs);
+        }
         if (pi.applicationInfo != null && pi.applicationInfo.metaData != null) {
             // GET_META_DATA is part of getComponentFlags(), but container PMs may omit it.
             // generateApplicationInfo() reads pkg.mAppMetaData, not applicationInfo.metaData.
@@ -309,6 +314,9 @@ public class BPackage implements Parcelable {
         this.applicationInfo = aPackage.applicationInfo;
         this.mVersionName = aPackage.mVersionName;
         this.baseCodePath = aPackage.baseCodePath;
+        if (aPackage.applicationInfo != null && aPackage.applicationInfo.splitSourceDirs != null) {
+            Collections.addAll(this.splitCodePaths, aPackage.applicationInfo.splitSourceDirs);
+        }
         this.mSharedUserLabel = aPackage.mSharedUserLabel;
         this.configPreferences = aPackage.configPreferences;
         this.reqFeatures = aPackage.reqFeatures;
@@ -399,6 +407,7 @@ public class BPackage implements Parcelable {
         this.applicationInfo = in.readParcelable(ApplicationInfo.class.getClassLoader());
         this.mVersionName = in.readString();
         this.baseCodePath = in.readString();
+        in.readStringList(this.splitCodePaths);
         this.mSharedUserLabel = in.readInt();
         this.configPreferences = in.createTypedArrayList(ConfigurationInfo.CREATOR);
         this.reqFeatures = in.createTypedArrayList(FeatureInfo.CREATOR);
@@ -926,6 +935,7 @@ public class BPackage implements Parcelable {
         dest.writeParcelable(this.applicationInfo, flags);
         dest.writeString(this.mVersionName);
         dest.writeString(this.baseCodePath);
+        dest.writeStringList(this.splitCodePaths);
         dest.writeInt(this.mSharedUserLabel);
         dest.writeTypedList(this.configPreferences);
         dest.writeTypedList(this.reqFeatures);

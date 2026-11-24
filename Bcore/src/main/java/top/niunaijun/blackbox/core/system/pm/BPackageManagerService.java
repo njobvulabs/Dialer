@@ -582,7 +582,14 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
     @Override
     public InstallResult installPackageAsUser(String file, InstallOption option, int userId) {
         synchronized (mInstallLock) {
-            return installPackageAsUserLocked(file, option, userId);
+            return installPackageAsUserLocked(file, Collections.<String>emptyList(), option, userId);
+        }
+    }
+
+    @Override
+    public InstallResult installSplitPackageAsUser(String file, List<String> splitFiles, InstallOption option, int userId) {
+        synchronized (mInstallLock) {
+            return installPackageAsUserLocked(file, splitFiles, option, userId);
         }
     }
 
@@ -713,7 +720,24 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         }
     }
 
-    private InstallResult installPackageAsUserLocked(String file, InstallOption option, int userId) {
+    private List<String> normalizeSplitFiles(List<String> splitFiles) {
+        List<String> result = new ArrayList<>();
+        if (splitFiles == null) {
+            return result;
+        }
+        for (String split : splitFiles) {
+            if (TextUtils.isEmpty(split)) {
+                continue;
+            }
+            File file = new File(split);
+            if (file.isFile() && !result.contains(file.getAbsolutePath())) {
+                result.add(file.getAbsolutePath());
+            }
+        }
+        return result;
+    }
+
+    private InstallResult installPackageAsUserLocked(String file, List<String> splitFiles, InstallOption option, int userId) {
         long l = System.currentTimeMillis();
         InstallResult result = new InstallResult();
         File apkFile = null;
@@ -810,10 +834,17 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
                 bPackageSettings = mSettings.getPackageLPw(aPackage.packageName, aPackage, option);
             }
 
-            
+            List<String> stagedSplits = normalizeSplitFiles(splitFiles);
+            bPackageSettings.pkg.splitCodePaths = new ArrayList<>(stagedSplits);
+            if (bPackageSettings.pkg.applicationInfo != null) {
+                bPackageSettings.pkg.applicationInfo.splitSourceDirs = stagedSplits.toArray(new String[0]);
+                bPackageSettings.pkg.applicationInfo.splitPublicSourceDirs = stagedSplits.toArray(new String[0]);
+            }
+
             BProcessManagerService.get().killPackageAsUser(aPackage.packageName, userId);
 
             CopyExecutor.lastError = null;
+
             int i = BPackageInstallerService.get().installPackageAsUser(bPackageSettings, userId);
             if (i < 0) {
                 String detail;

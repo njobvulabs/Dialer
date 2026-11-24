@@ -131,8 +131,9 @@ under **Comms / Apps / Tools / Web apps / System** section headers.
   applies to **Forward**). The compose fields use explicit high-contrast colours so the
   text stays readable in both light and AMOLED dark mode.
   **Long-press a conversation** for **Mark as read** or **Delete** — Delete clears the
-  chat (with an **Undo**) and it stays out of your list until somebody actually texts
-  you again, at which point it comes back. Note the app is not the phone's default SMS
+  chat (with an **Undo**) and it stays out of your list until a genuinely newer message
+  arrives from the same sender, at which point it comes back. Note the app is not the
+  phone's default SMS
   app, so the inbox messages themselves stay in the phone's storage and reappear if you
   return to the thread
 - **Call statistics** 📊 (Home tile) — totals, talk time, 6-month & 8-week bar charts, top
@@ -570,25 +571,45 @@ sandbox, and then lists sandboxed apps with **Launch**, **Stop**, **Clear**, **I
 **App settings** and **Remove** actions. **Info** shows diagnostics that can be saved to
 `Download/NJCrash/` for troubleshooting.
 
-- **All-files access is required for reliable launches** — the screen shows the current
-  state and can open the system All files access settings for NJ-Dialer.
+- **All-files access is required for reliable launches** — a compact status line shows the
+  current state, and **Tune → Environment** can open the system All files access settings
+  for NJ-Dialer.
+- **Internet access is available** — sandboxed APKs receive `INTERNET` and
+  `ACCESS_NETWORK_STATE` through the app's virtual permission hooks; no extra toggle is
+  needed.
 - **App settings open in NJ-Dialer** — each sandboxed app's ⋮ menu has **App settings**, and
-  when a sandboxed app opens Android's App Info, notification, storage, battery, or
-  app-details settings, NJ-Dialer opens its own sandbox settings screen for that virtual app
-  with the same launch, stop, data, diagnostics, permissions, and storage controls.
+  when a sandboxed app opens Android's App Info, notifications, all-files access, overlay,
+  install-unknown-apps, open-by-default, battery, or app-details settings, NJ-Dialer opens its
+  own sandbox settings screen for that virtual app with SDK/component/runtime summaries,
+  requested-permission status, launch, stop, clear, info, diagnostics, and storage controls.
+- **Split APK bundles are supported** — the picker accepts `.apk`, `.apks`, `.xapk`, and
+  `.zip`. Bundles are staged in app cache, APK entries are bounded (64 files, 2 GiB each),
+  and the installer keeps `base.apk` plus split code paths, native libraries, and asset paths
+  intact.
 - **Install and launch errors are explained** — install preflight rejects sandboxing
   NJ-Dialer itself or reinstalling an existing package, and launch failures show a specific
   reason when an app needs all-files access, 32-bit native libraries, or a relaunch after a
   storage-mode change.
-- **Shared folders are opt-in per app** — each app’s ⋮ menu can switch between virtual
-  storage and passthrough for `Download`, `Documents`, `DCIM`, `Movies`, `Music`, and
-  `Pictures`. The app is stopped when the mode changes and must be relaunched. In shared
-  mode, those six folders appear in the virtual storage root as empty placeholders and open
-  the real host folders; SAF/system file pickers also use the host Documents provider for
-  those apps. Shared folders are not private: the sandboxed app shares NJ-Dialer’s UID and
-  permissions.
-- **Crash history survives relaunches** — **Info** includes diagnostics, and
-  **Export crash logs** writes raw BBDiag/CrashMonitor logs to `Download/NJCrash/`.
+- **Shared folders are opt-in per app and per folder** — each app’s ⋮ menu can enable or
+  disable passthrough independently for `Download`, `Documents`, `DCIM`, `Movies`, `Music`,
+  and `Pictures`. The app is stopped when storage access changes and must be relaunched. In
+  shared mode, those six folders appear in the virtual storage root as empty placeholders and
+  open the real host folders; SAF/system file pickers also use the host Documents provider
+  while any folder is shared. Shared folders are not private: the sandboxed app shares
+  NJ-Dialer’s UID and permissions.
+- **Install from a picker or installed apps** — the top-bar **+** menu has **Choose APK** and
+  **Clone installed app**; **Clone to another user** stays in an app's ⋮ menu.
+- **Virtual users, settings and environment live in one sheet** — the top-bar **Tune** button
+  opens a **Settings / Users / Environment** sheet. **Users** switches the active `userId`,
+  creates/deletes extra users, and keeps each user's apps and data separate. **Settings**
+  chooses default folders for new installs, optionally applies them automatically, requires
+  confirmation before **Stop**, and controls the SAF bridge and stop-on-leave behaviour.
+  **Environment** has all-files access, diagnostics and crash-log export.
+- **Fake location** — set an app's location to **Off**, **Global**, or **Custom** from its ⋮
+  menu. Define the global location from **Tune → Users** and optionally apply global mode to
+  every installed sandbox app. Apps must be relaunched to pick up a location change.
+- **Crash history survives relaunches** — **Info** includes diagnostics, and **Tune →
+  Environment → Export crash logs** writes raw BBDiag/CrashMonitor logs to `Download/NJCrash/`.
 - **Apps open immersive full screen** — status and navigation bars are hidden when a
   sandboxed app opens; swipe from the edge to reveal them temporarily.
 - **Best for simple utility APKs** — apps that depend on Google Play services, Play

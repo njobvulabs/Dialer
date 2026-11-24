@@ -704,6 +704,10 @@ public class BPackageManager extends BlackManager<IBPackageManagerService> {
     }
 
     public InstallResult installPackageAsUser(String file, InstallOption option, int userId) {
+        return installSplitPackageAsUser(file, Collections.<String>emptyList(), option, userId);
+    }
+
+    public InstallResult installSplitPackageAsUser(String file, List<String> splitFiles, InstallOption option, int userId) {
         try {
             
             if (file != null && !file.isEmpty()) {
@@ -723,7 +727,7 @@ public class BPackageManager extends BlackManager<IBPackageManagerService> {
                 }
             }
             
-            return getService().installPackageAsUser(file, option, userId);
+            return getService().installSplitPackageAsUser(file, splitFiles, option, userId);
         } catch (RemoteException e) {
             crash(e);
         }

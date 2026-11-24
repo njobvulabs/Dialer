@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
@@ -24,6 +25,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -170,6 +172,24 @@ private data class SettingsStatus(
     val time: String
 )
 
+private data class SettingsPendingFolderToggle(
+    val folder: String? = null,
+    val enabled: Boolean
+)
+
+private data class SettingsPackageDetails(
+    val label: String,
+    val version: String,
+    val minSdk: Int,
+    val targetSdk: Int,
+    val activities: List<String>,
+    val services: List<String>,
+    val receivers: List<String>,
+    val providers: List<String>,
+    val processes: List<String>,
+    val runningServices: List<String>
+)
+
 private fun settingsNow(): String =
     DateFormat.getTimeInstance(DateFormat.SHORT).format(Date())
 
@@ -193,18 +213,27 @@ fun SandboxAppSettingsScreen(
     var label by remember(packageName) { mutableStateOf(packageName) }
     var version by remember(packageName) { mutableStateOf("") }
     var permissions by remember(packageName) { mutableStateOf<List<String>>(emptyList()) }
-    var sharedStorage by remember(packageName, userId) {
+    var minSdk by remember(packageName) { mutableStateOf(0) }
+    var targetSdk by remember(packageName) { mutableStateOf(0) }
+    var activities by remember(packageName) { mutableStateOf<List<String>>(emptyList()) }
+    var services by remember(packageName) { mutableStateOf<List<String>>(emptyList()) }
+    var receivers by remember(packageName) { mutableStateOf<List<String>>(emptyList()) }
+    var providers by remember(packageName) { mutableStateOf<List<String>>(emptyList()) }
+    var processes by remember(packageName) { mutableStateOf<List<String>>(emptyList()) }
+    var runningServices by remember(packageName) { mutableStateOf<List<String>>(emptyList()) }
+    var sharedFolders by remember(packageName, userId) {
         mutableStateOf(
-            runCatching { BlackBoxCore.get().hasSharedInternalStorageAccess(packageName, userId) }
-                .getOrDefault(false)
+            runCatching { BlackBoxCore.get().getSharedFolders(packageName, userId) }
+                .getOrDefault(emptySet())
         )
     }
+    val sharedStorage = sharedFolders.isNotEmpty()
     var status by remember {
         mutableStateOf(SettingsStatus("Ready.", SettingsStatusTone.Info, settingsNow()))
     }
     var busy by remember { mutableStateOf(false) }
     var pendingLaunch by remember { mutableStateOf(false) }
-    var pendingStorageToggle by remember { mutableStateOf<Boolean?>(null) }
+    var pendingStorageToggle by remember { mutableStateOf<SettingsPendingFolderToggle?>(null) }
     var confirmClear by remember { mutableStateOf(false) }
     var confirmRemove by remember { mutableStateOf(false) }
     var dialogTitle by remember { mutableStateOf<String?>(null) }
@@ -234,6 +263,31 @@ fun SandboxAppSettingsScreen(
             info.versionCode.takeIf { it != 0 }?.toString()
         ).joinToString(" ")
         permissions = info.requestedPermissions?.toList().orEmpty()
+        minSdk = info.applicationInfo?.minSdkVersion ?: 0
+        targetSdk = info.applicationInfo?.targetSdkVersion ?: 0
+        activities = info.activities?.mapNotNull { it.name }?.sorted().orEmpty()
+        services = info.services?.mapNotNull { it.name }?.sorted().orEmpty()
+        receivers = info.receivers?.mapNotNull { it.name }?.sorted().orEmpty()
+        providers = info.providers?.mapNotNull { it.name }?.sorted().orEmpty()
+        val processesNow = runCatching {
+            BlackBoxCore.getBActivityManager()
+                .getRunningAppProcesses(packageName, userId)
+                ?.mAppProcessInfoList
+        }.getOrNull()
+        processes = processesNow.orEmpty()
+            .map { "${it.processName} (pid ${it.pid})" }
+            .sorted()
+        val servicesNow = runCatching {
+            BlackBoxCore.getBActivityManager()
+                .getRunningServices(packageName, userId)
+                ?.mRunningServiceInfoList
+        }.getOrNull()
+        runningServices = servicesNow.orEmpty()
+            .mapNotNull { service ->
+                val name = service.service?.className ?: service.process
+                if (name.isNullOrBlank()) null else "$name (${service.process})"
+            }
+            .sorted()
     }
 
     fun launchApp() {
@@ -279,38 +333,72 @@ fun SandboxAppSettingsScreen(
         }
     }
 
-    fun applySharedStorage(enabled: Boolean) {
+    fun applySharedFolders(folders: Set<String>) {
         scope.launch {
-            val result = SandboxActions.setSharedStorage(packageName, label, userId, enabled, allFilesGranted)
+            val result = SandboxActions.setSharedFolders(packageName, label, userId, folders, allFilesGranted)
             if (result.needsAllFilesAccess) {
-                pendingStorageToggle = enabled
+                pendingStorageToggle = SettingsPendingFolderToggle(null, true)
                 onRequestAllFilesAccess()
             }
             if (result.ok) {
-                sharedStorage = runCatching {
-                    BlackBoxCore.get().hasSharedInternalStorageAccess(packageName, userId)
-                }.getOrDefault(sharedStorage)
+                sharedFolders = runCatching {
+                    BlackBoxCore.get().getSharedFolders(packageName, userId)
+                }.getOrDefault(sharedFolders)
+            }
+            setStatus(result.message, if (result.ok) SettingsStatusTone.Success else SettingsStatusTone.Error)
+        }
+    }
+
+    fun setSharedFolders(folders: Set<String>) {
+        val enabling = folders.isNotEmpty()
+        if (enabling && SandboxActions.needsAllFilesAccessPrompt() && !allFilesGranted) {
+            pendingStorageToggle = SettingsPendingFolderToggle(null, true)
+            onRequestAllFilesAccess()
+            setStatus(SandboxActions.allFilesAccessMessage(), SettingsStatusTone.Error)
+            return
+        }
+        pendingStorageToggle = null
+        applySharedFolders(folders)
+    }
+
+    fun setSharedFolder(folder: String, enabled: Boolean) {
+        if (enabled && SandboxActions.needsAllFilesAccessPrompt() && !allFilesGranted) {
+            pendingStorageToggle = SettingsPendingFolderToggle(folder, true)
+            onRequestAllFilesAccess()
+            setStatus(SandboxActions.allFilesAccessMessage(), SettingsStatusTone.Error)
+            return
+        }
+        pendingStorageToggle = null
+        scope.launch {
+            val result = SandboxActions.setSharedFolder(packageName, label, userId, folder, enabled, allFilesGranted)
+            if (result.needsAllFilesAccess) {
+                pendingStorageToggle = SettingsPendingFolderToggle(folder, true)
+                onRequestAllFilesAccess()
+            }
+            if (result.ok) {
+                sharedFolders = runCatching {
+                    BlackBoxCore.get().getSharedFolders(packageName, userId)
+                }.getOrDefault(sharedFolders)
             }
             setStatus(result.message, if (result.ok) SettingsStatusTone.Success else SettingsStatusTone.Error)
         }
     }
 
     fun setSharedStorage(enabled: Boolean) {
-        if (enabled && SandboxActions.needsAllFilesAccessPrompt() && !allFilesGranted) {
-            pendingStorageToggle = enabled
-            onRequestAllFilesAccess()
-            setStatus(SandboxActions.allFilesAccessMessage(), SettingsStatusTone.Error)
-            return
-        }
-        pendingStorageToggle = null
-        applySharedStorage(enabled)
+        setSharedFolders(if (enabled) SandboxStorageFolders.ALL else emptySet())
     }
 
     LaunchedEffect(allFilesGranted, pendingLaunch, pendingStorageToggle) {
         if (pendingLaunch && (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || allFilesGranted)) {
             launchApp()
-        } else if (pendingStorageToggle == true && (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || allFilesGranted)) {
-            setSharedStorage(true)
+        } else if (pendingStorageToggle?.enabled == true && (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || allFilesGranted)) {
+            val pending = pendingStorageToggle ?: return@LaunchedEffect
+            pendingStorageToggle = null
+            if (pending.folder == null) {
+                setSharedFolders(SandboxStorageFolders.ALL)
+            } else {
+                setSharedFolder(pending.folder, true)
+            }
         }
     }
 
@@ -381,7 +469,7 @@ fun SandboxAppSettingsScreen(
                 item {
                     SectionCard(title = label) {
                         Text(
-                            "$packageName\n$version\nVirtual user $userId",
+                            "$packageName\n$version\nVirtual user $userId\nSDK $minSdk–$targetSdk",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -410,14 +498,103 @@ fun SandboxAppSettingsScreen(
                 }
 
                 item {
+                    SectionCard(title = "App components") {
+                        listOf(
+                            "Activities" to activities,
+                            "Services" to services,
+                            "Receivers" to receivers,
+                            "Providers" to providers
+                        ).forEach { (title, names) ->
+                            Text(
+                                "$title (${names.size})",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            if (names.isEmpty()) {
+                                Text(
+                                    "None",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                SelectionContainer {
+                                    Text(
+                                        names.joinToString("\n"),
+                                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(8.dp))
+                        }
+                    }
+                }
+
+                item {
+                    SectionCard(title = "Runtime") {
+                        Text(
+                            "Processes",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (processes.isEmpty()) {
+                            Text(
+                                "Not running",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            SelectionContainer {
+                                Text(
+                                    processes.joinToString("\n"),
+                                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Running services",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (runningServices.isEmpty()) {
+                            Text(
+                                "None",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            SelectionContainer {
+                                Text(
+                                    runningServices.joinToString("\n"),
+                                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                item {
                     SectionCard(title = "Storage") {
                         Text(
-                            if (sharedStorage) "Shared folders: on. This app can use Download, Documents, DCIM, Movies, Music and Pictures from the real device."
-                            else "Virtual storage: on. This app sees only its sandbox files.",
+                            if (sharedStorage) {
+                                "Shared folders: ${sharedFolders.sorted().joinToString(", ")}"
+                            } else {
+                                "Virtual storage: on. This app sees only its sandbox files."
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             color = if (sharedStorage) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        Spacer(Modifier.height(8.dp))
+                        SandboxStorageFolders.ALL.forEach { folder ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(
+                                    checked = folder in sharedFolders,
+                                    onCheckedChange = { enabled -> setSharedFolder(folder, enabled) }
+                                )
+                                Text(folder, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
                         Spacer(Modifier.height(8.dp))
                         Text(
                             "Shared folders are not private. The sandbox shares NJ-Dialer's UID and permissions, so restarting is required after a change.",
@@ -426,7 +603,7 @@ fun SandboxAppSettingsScreen(
                         )
                         Spacer(Modifier.height(10.dp))
                         AppSecondaryButton(
-                            text = if (sharedStorage) "Use virtual storage" else "Enable shared folders",
+                            text = if (sharedStorage) "Use virtual storage" else "Enable all shared folders",
                             icon = AppIcons.Storage,
                             enabled = !busy,
                             modifier = Modifier.fillMaxWidth(),
@@ -491,23 +668,40 @@ fun SandboxAppSettingsScreen(
                 item {
                     SectionCard(title = "Permissions") {
                         Text(
-                            "Audio, storage/media and notification-related permissions are auto-granted by the sandbox. Other permissions cannot be changed from stock Settings for a virtual package.",
+                            "Read-only summary. Sandbox auto-granted permissions are allowed in virtual apps; the rest depend on NJ-Dialer's host permissions.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(Modifier.height(10.dp))
-                        if (permissions.isEmpty()) {
+                        val permissionSummary = SandboxPermissionCatalog.summarize(permissions)
+                        if (permissionSummary.isEmpty()) {
                             Text(
                                 "No requested permissions reported.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         } else {
-                            SelectionContainer {
-                                Text(
-                                    permissions.joinToString("\n"),
-                                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)
-                                )
+                            permissionSummary.forEach { permission ->
+                                Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                                    Text(
+                                        permission.name,
+                                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)
+                                    )
+                                    Text(
+                                        "${permission.status.label} · ${permission.category}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (permission.status == SandboxPermissionStatus.AutoGranted) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        }
+                                    )
+                                    Text(
+                                        permission.detail,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }

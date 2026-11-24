@@ -17,6 +17,7 @@ import android.content.res.AssetManager;
 import android.content.res.Resources;
 import android.os.Build;
 
+import java.io.File;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -331,6 +332,18 @@ public class PackageManagerCompat {
         ai.processName = BPackageManagerService.fixProcessName(p.packageName, ai.packageName);
         ai.publicSourceDir = sourceDir;
         ai.sourceDir = sourceDir;
+        if (p.splitCodePaths != null && !p.splitCodePaths.isEmpty()) {
+            String[] splitDirs = p.splitCodePaths.toArray(new String[0]);
+            String[] splitNames = new String[p.splitCodePaths.size()];
+            for (int i = 0; i < splitDirs.length; i++) {
+                String name = new File(splitDirs[i]).getName();
+                int dot = name.lastIndexOf('.');
+                splitNames[i] = dot > 0 ? name.substring(0, dot) : name;
+            }
+            ai.splitSourceDirs = splitDirs;
+            ai.splitPublicSourceDirs = splitDirs;
+            ai.splitNames = splitNames;
+        }
         ai.uid = p.mExtras.appId;
 
 
@@ -395,6 +408,11 @@ public class PackageManagerCompat {
         if (ps != null) {
             AssetManager assets = BRAssetManager.get()._new();
             BRAssetManager.get(assets).addAssetPath(ps.pkg.baseCodePath);
+            if (ps.pkg.splitCodePaths != null) {
+                for (String split : ps.pkg.splitCodePaths) {
+                    BRAssetManager.get(assets).addAssetPath(split);
+                }
+            }
             Resources hostRes = context.getResources();
             return new Resources(assets, hostRes.getDisplayMetrics(), hostRes.getConfiguration());
         }

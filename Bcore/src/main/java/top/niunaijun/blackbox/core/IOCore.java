@@ -146,9 +146,9 @@ public class IOCore {
                 rule.put("/sdcard", external.getAbsolutePath());
                 rule.put(String.format("/storage/emulated/%d", systemUserId), external.getAbsolutePath());
 
-                if (SharedStorageConfig.has(packageName, BlackBoxCore.getUserId())) {
-                    String[] sharedDirs = {"Download", "Documents", "DCIM", "Movies", "Music", "Pictures"};
-                    for (String dir : sharedDirs) {
+                Set<String> sharedFolders = SharedStorageConfig.getFolders(packageName, BlackBoxCore.getUserId());
+                if (!sharedFolders.isEmpty()) {
+                    for (String dir : sharedFolders) {
                         File shortcut = new File(external, dir);
                         if (!shortcut.exists()) {
                             FileUtils.mkdirs(shortcut.getAbsolutePath());

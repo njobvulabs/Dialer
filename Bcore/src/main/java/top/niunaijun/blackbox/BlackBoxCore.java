@@ -80,7 +80,7 @@ import top.niunaijun.blackbox.utils.LogSender;
 public class BlackBoxCore extends ClientConfiguration {
     public static final String TAG = "BlackBoxCore";
     /** Bumped with every launch-fix build so an on-screen diagnostic identifies the installed APK. */
-    public static final String DIAG_BUILD = "bb-4.0.9-appsettings";
+    public static final String DIAG_BUILD = "bb-4.0.9-splitsupport";
 
     private static final BlackBoxCore sBlackBoxCore = new BlackBoxCore();
     private static Context sContext;
@@ -1138,6 +1138,22 @@ public class BlackBoxCore extends ClientConfiguration {
         return SharedStorageConfig.has(packageName, userId);
     }
 
+    public java.util.Set<String> getSharedFolders(String packageName, int userId) {
+        return SharedStorageConfig.getFolders(packageName, userId);
+    }
+
+    public static java.util.Set<String> getKnownSharedFolders() {
+        return SharedStorageConfig.SHARED_FOLDERS;
+    }
+
+    public void setSharedFolders(String packageName, int userId, java.util.Set<String> folders) {
+        SharedStorageConfig.setFolders(packageName, userId, folders);
+    }
+
+    public void setSharedFolderAccess(String packageName, int userId, String folder, boolean enabled) {
+        SharedStorageConfig.setFolder(packageName, userId, folder, enabled);
+    }
+
     public boolean launchApk(String packageName, int userId) {
         // Start a fresh per-launch trace so a previous app's crash does not get misattributed.
         try {
@@ -1414,6 +1430,27 @@ public class BlackBoxCore extends ClientConfiguration {
         }
         
         return getBPackageManager().installPackageAsUser(apk.getAbsolutePath(), InstallOption.installByStorage(), userId);
+    }
+
+    public InstallResult installSplitPackageAsUser(File apk, List<File> splitFiles, int userId) {
+        try {
+            PackageInfo packageInfo = getPackageManager().getPackageArchiveInfo(apk.getAbsolutePath(), 0);
+            if (packageInfo != null && packageInfo.packageName.equals(getHostPkg())) {
+                return new InstallResult().installError("Cannot clone BlackBox app from within BlackBox. This would create infinite recursion and is not allowed for security reasons.");
+            }
+        } catch (Exception e) {
+            Slog.w(TAG, "Could not verify package info for split APK: " + apk.getAbsolutePath());
+        }
+        List<String> paths = new ArrayList<>();
+        if (splitFiles != null) {
+            for (File split : splitFiles) {
+                if (split != null) {
+                    paths.add(split.getAbsolutePath());
+                }
+            }
+        }
+        return getBPackageManager().installSplitPackageAsUser(apk.getAbsolutePath(), paths,
+                InstallOption.installByStorage(), userId);
     }
 
     public InstallResult installPackageAsUser(Uri apk, int userId) {

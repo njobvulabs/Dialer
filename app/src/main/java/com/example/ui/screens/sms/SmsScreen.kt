@@ -57,6 +57,7 @@ import com.example.ui.components.AppSearchField
 import com.example.ui.components.FloatingTopBar
 import com.example.ui.components.landscapeContentWidth
 import com.example.util.DeviceContacts
+import com.example.util.SmsConversationDeletes
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import java.text.SimpleDateFormat
@@ -470,7 +471,7 @@ private fun ConversationList(
 
     // Long-press action sheet: mark read (the previous long-press behaviour) plus
     // "Delete conversation", which only ever clears nj-dialer's own copy - see
-    // SmsDeletedConversations for why the provider rows survive.
+    // SmsConversationDeletes for why the provider rows survive.
     actionFor?.let { conv ->
         AlertDialog(
             onDismissRequest = { actionFor = null },
@@ -533,7 +534,7 @@ private fun ConversationList(
                         if (result == SnackbarResult.ActionPerformed) {
                             // Undo only has to drop the tombstone: the provider rows were
                             // never deleted, so the conversation reappears on the next load.
-                            SmsDeletedConversations.clear(context, setOf(normalizeNumber(conv.address)))
+                            SmsConversationDeletes.clear(context, setOf(conv.address))
                             reloadKey++
                         }
                     }
@@ -1277,7 +1278,7 @@ private suspend fun loadConversations(context: Context, viewModel: MainViewModel
         // group by thread_id in memory instead — this also gives us the SIM sub_id.
         val cursor: Cursor? = context.contentResolver.query(
             Uri.parse("content://sms"),
-            arrayOf("_id", "thread_id", "address", "body", "date", "read", "sub_id"),
+            arrayOf("thread_id", "address", "body", "date", "read", "sub_id"),
             null, null, "date DESC"
         )
         cursor?.use { c ->
@@ -1290,6 +1291,7 @@ private suspend fun loadConversations(context: Context, viewModel: MainViewModel
                 else c.getColumnIndex("subscription_id")
             while (c.moveToNext()) {
                 val threadId = c.getLong(iThread)
+                val address = if (iAddr >= 0) c.getString(iAddr) ?: "" else ""
                 val subId = if (iSub >= 0) c.getLong(iSub) else -1L
                 val isRead = if (iRead >= 0) c.getInt(iRead) else 1
                 if (isRead == 0) {
@@ -1299,7 +1301,7 @@ private suspend fun loadConversations(context: Context, viewModel: MainViewModel
                 if (!byThread.containsKey(threadId)) {
                     byThread[threadId] = Conversation(
                         threadId = threadId,
-                        address = if (iAddr >= 0) c.getString(iAddr) ?: "" else "",
+                        address = address,
                         body = if (iBody >= 0) c.getString(iBody) ?: "" else "",
                         date = if (iDate >= 0) c.getLong(iDate) else 0L,
                         read = isRead,
@@ -1326,31 +1328,21 @@ private suspend fun loadConversations(context: Context, viewModel: MainViewModel
                     simSlot = le.simSlot
                 )
             } else if (le.date >= existing.date) {
-                byThread[le.threadId] = existing.copy(body = le.body, date = le.date, simSlot = le.simSlot)
+                byThread[le.threadId] = existing.copy(
+                    body = le.body,
+                    date = le.date,
+                    simSlot = le.simSlot
+                )
             }
         }
     } catch (e: Exception) {
         return SmsResult(emptyList(), "Couldn't read SMS: ${e.message}")
     }
-    // Hide conversations the user deleted, unless a NEW message arrived after the
-    // delete - then the conversation comes back (WhatsApp-style) and the tombstone is
-    // dropped. See SmsDeletedConversations. Also re-sort: the provider scan is already
-    // date DESC, but the local_sms merge above appends Room-only threads in arbitrary
-    // order, which used to pin them to the bottom of the list.
-    val deleted = SmsDeletedConversations.read(context)
-    val restored = HashSet<String>()
+    SmsConversationDeletes.unhideIncoming(context)
+    val hidden = SmsConversationDeletes.read(context).keys
     val visible = byThread.values.filter { conv ->
-        val deletedAt = deleted[normalizeNumber(conv.address)]
-        when {
-            deletedAt == null -> true
-            conv.date > deletedAt -> {
-                restored.add(normalizeNumber(conv.address))
-                true
-            }
-            else -> false
-        }
+        SmsConversationDeletes.keyFor(conv.address) !in hidden
     }
-    if (restored.isNotEmpty()) SmsDeletedConversations.clear(context, restored)
     return SmsResult(visible.sortedByDescending { it.date })
 }
 
@@ -1572,6 +1564,7 @@ private suspend fun sendLocalAndSms(
         } else {
             smsManager.sendTextMessage(number, null, body, buildSentPendingIntent(context, localId, 0), pId)
         }
+        SmsConversationDeletes.clear(context, listOf(toAddress, number))
         // No immediate "Message sent" toast: the SENT broadcast confirms the hand-off.
     } catch (e: Exception) {
         viewModel.updateLocalSmsStatus(localId, "FAILED")
@@ -1712,16 +1705,21 @@ private suspend fun deleteMessage(context: Context, viewModel: MainViewModel, ms
  * nj-dialer is NOT the default SMS handler and declares no WRITE_SMS, so a
  * `content://sms` delete silently no-ops here — the messages necessarily stay in the
  * phone's SMS app. A delete therefore does what it *can*: it drops the app's own
- * `local_sms` echoes and records the address in [SmsDeletedConversations] so the
- * conversation leaves the list until a new message arrives. Deliberately no error
- * toast (unlike [deleteMessage]): a failed provider delete is expected here, not a
- * problem the user can act on.
+ * `local_sms` echoes and adds the conversation's number to a hidden-key block in
+ * [SmsConversationDeletes], so old provider rows and delayed writes cannot resurrect
+ * the thread. Deliberately no error toast (unlike [deleteMessage]): a failed provider
+ * delete is expected here, not a problem the user can act on.
  */
 private suspend fun deleteConversation(
     context: Context,
     viewModel: MainViewModel,
     conv: Conversation
 ) {
+    val key = SmsConversationDeletes.keyFor(conv.address)
+    val localRows = viewModel.getLocalSmsAll().filter {
+        it.threadId == conv.threadId ||
+            (key.isNotEmpty() && SmsConversationDeletes.keyFor(it.address) == key)
+    }
     if (conv.threadId >= 0) {
         runCatching {
             context.contentResolver.delete(
@@ -1732,56 +1730,10 @@ private suspend fun deleteConversation(
         }
     }
     viewModel.deleteLocalSmsForThreadSuspend(conv.threadId)
-    SmsDeletedConversations.mark(context, conv.address)
-}
-
-/**
- * "Delete conversation" bookkeeping, persisted in SharedPreferences so it survives
- * restarts (and is only ever cleared by clearing app data or pressing Undo).
- *
- * The record is `<deletedAt>|<normalized address>` rather than a threadId for two
- * reasons: a synthetic (negative) threadId flips to a real provider threadId as soon
- * as the sender replies ([resolveThreadIdForAddress]), and the same person can be
- * reached through several raw number spellings. Holding the delete *timestamp* (and
- * not a permanent "hidden" flag) is what makes a new message bring the conversation
- * back instead of hiding the sender forever.
- */
-private object SmsDeletedConversations {
-    private const val PREFS = "sms"
-    private const val KEY = "deleted_conversations"
-
-    /** Normalized address -> epoch millis of the delete. */
-    fun read(context: Context): Map<String, Long> {
-        val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getStringSet(KEY, null) ?: return emptyMap()
-        val out = HashMap<String, Long>(raw.size)
-        for (entry in raw) {
-            val sep = entry.indexOf('|')
-            if (sep <= 0) continue
-            out[entry.substring(sep + 1)] = entry.substring(0, sep).toLongOrNull() ?: continue
-        }
-        return out
+    localRows.filter { it.threadId != conv.threadId }.forEach {
+        viewModel.deleteLocalSmsByIdSuspend(it.id)
     }
-
-    fun mark(context: Context, address: String) {
-        val key = normalizeNumber(address)
-        if (key.isEmpty()) return
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        // getStringSet hands back a shared instance we must not mutate in place.
-        val current = prefs.getStringSet(KEY, null)?.toMutableSet() ?: mutableSetOf()
-        current.removeAll { it.substringAfter('|') == key }
-        current.add("${System.currentTimeMillis()}|$key")
-        prefs.edit().putStringSet(KEY, current).apply()
-    }
-
-    fun clear(context: Context, keys: Set<String>) {
-        if (keys.isEmpty()) return
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val current = prefs.getStringSet(KEY, null)?.toMutableSet() ?: mutableSetOf()
-        if (current.removeAll { it.substringAfter('|') in keys }) {
-            prefs.edit().putStringSet(KEY, current).apply()
-        }
-    }
+    SmsConversationDeletes.mark(context, conv.address)
 }
 
 // Stable negative id derived from a normalized address. Provider thread ids are small
@@ -1791,7 +1743,7 @@ private fun syntheticThreadId(number: String): Long {
     // Hash the subscriber-number tail, not the raw string: "+265712345678" and
     // "0712345678" are one person, and two different hashes for them would create
     // two separate conversations for the same recipient.
-    val norm = significantTail(number)
+    val norm = SmsConversationDeletes.keyFor(number)
     val h = kotlin.math.abs(norm.hashCode())
     return -(1_000_000_000L + h)
 }

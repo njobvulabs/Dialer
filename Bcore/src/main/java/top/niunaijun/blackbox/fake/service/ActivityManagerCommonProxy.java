@@ -132,7 +132,7 @@ public class ActivityManagerCommonProxy {
             return 0;
         }
 
-        private boolean maybeRedirectAppSettings(Intent intent) {
+        private static boolean maybeRedirectAppSettings(Intent intent) {
             if (intent == null) return false;
             String action = intent.getAction();
             if (action == null) return false;
@@ -141,7 +141,10 @@ public class ActivityManagerCommonProxy {
                     || Settings.ACTION_APP_NOTIFICATION_SETTINGS.equals(action)
                     || Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION.equals(action)
                     || Settings.ACTION_MANAGE_WRITE_SETTINGS.equals(action)
-                    || Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS.equals(action);
+                    || Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS.equals(action)
+                    || Settings.ACTION_MANAGE_OVERLAY_PERMISSION.equals(action)
+                    || Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES.equals(action)
+                    || Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS.equals(action);
             if (!knownAction) return false;
 
             String guestPackage = BActivityThread.getAppPackageName();
@@ -154,6 +157,9 @@ public class ActivityManagerCommonProxy {
             String extraPackage = intent.getStringExtra(Settings.EXTRA_APP_PACKAGE);
             if (extraPackage == null) {
                 extraPackage = intent.getStringExtra("android.intent.extra.PACKAGE_NAME");
+            }
+            if (extraPackage == null) {
+                extraPackage = intent.getStringExtra("android.provider.extra.PACKAGE_NAME");
             }
             if (!guestPackage.equals(dataPackage) && !guestPackage.equals(extraPackage)) {
                 return false;
@@ -207,7 +213,16 @@ public class ActivityManagerCommonProxy {
             String[] resolvedTypes = (String[]) args[index++];
             IBinder resultTo = (IBinder) args[index++];
             Bundle options = (Bundle) args[index];
-            
+
+            for (Intent intent : intents) {
+                if (StartActivity.maybeRedirectAppSettings(intent)) {
+                    for (Intent redirected : intents) {
+                        redirected.setExtrasClassLoader(who.getClass().getClassLoader());
+                    }
+                    return method.invoke(who, args);
+                }
+            }
+
             if (!ComponentUtils.isSelf(intents)) {
                 return method.invoke(who, args);
             }

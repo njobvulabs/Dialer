@@ -198,7 +198,8 @@ public class IPackageManagerProxy extends BinderInvocationStub {
                         if (perm != null && (perm.equals(android.Manifest.permission.RECORD_AUDIO)
                                 || perm.equals("android.permission.FOREGROUND_SERVICE_MICROPHONE")
                                 || perm.equals(android.Manifest.permission.MODIFY_AUDIO_SETTINGS)
-                                || perm.equals(android.Manifest.permission.CAPTURE_AUDIO_OUTPUT))) {
+                                || perm.equals(android.Manifest.permission.CAPTURE_AUDIO_OUTPUT)
+                                || isNetworkPermission(perm))) {
                             packageInfo.requestedPermissionsFlags[i] |= PackageInfo.REQUESTED_PERMISSION_GRANTED;
                         }
                     }
@@ -513,7 +514,10 @@ public class IPackageManagerProxy extends BinderInvocationStub {
                 return PackageManager.PERMISSION_GRANTED;
             }
 
-            
+            if (isNetworkPermission(permission)) {
+                return PackageManager.PERMISSION_GRANTED;
+            }
+
             if (isStorageOrMediaPermission(permission)) {
                 Slog.d(TAG, "SimpleAudioPermissionHook: Granting storage/media permission: " + permission + " to " + packageName);
                 return PackageManager.PERMISSION_GRANTED;
@@ -543,7 +547,10 @@ public class IPackageManagerProxy extends BinderInvocationStub {
                 return PackageManager.PERMISSION_GRANTED;
             }
 
-            
+            if (isNetworkPermission(permission)) {
+                return PackageManager.PERMISSION_GRANTED;
+            }
+
             if (isStorageOrMediaPermission(permission)) {
                 Slog.d(TAG, "CheckSelfPermission: Granting storage/media permission: " + permission + " to " + packageName);
                 return PackageManager.PERMISSION_GRANTED;
@@ -573,7 +580,10 @@ public class IPackageManagerProxy extends BinderInvocationStub {
                 return false;
             }
 
-            
+            if (isNetworkPermission(permission)) {
+                return false;
+            }
+
             if (isStorageOrMediaPermission(permission)) {
                 Slog.d(TAG, "ShouldShowRequestPermissionRationale: Not showing rationale for storage/media permission: " + permission);
                 return false;
@@ -617,7 +627,12 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         }
     }
 
-    
+    private static boolean isNetworkPermission(String permission) {
+        if (permission == null) return false;
+        return permission.equals("android.permission.INTERNET")
+                || permission.equals("android.permission.ACCESS_NETWORK_STATE");
+    }
+
     private static boolean isStorageOrMediaPermission(String permission) {
         if (permission == null) return false;
         

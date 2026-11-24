@@ -1,21 +1,50 @@
 package com.example.ui.screens.sandbox
 
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.provider.OpenableColumns
 import com.example.util.CrashLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.niunaijun.blackbox.BlackBoxCore
+import top.niunaijun.blackbox.entity.location.BLocation
+import top.niunaijun.blackbox.fake.frameworks.BLocationManager
 import java.io.File
+import java.util.zip.ZipFile
 
 data class SandboxApp(
     val packageName: String,
     val label: String,
     val version: String,
-    val sharedStorage: Boolean = false
+    val sharedFolders: Set<String> = emptySet(),
+    val minSdk: Int = 0,
+    val targetSdk: Int = 0,
+    val requestedPermissions: List<String> = emptyList(),
+    val userId: Int = 0
+) {
+    val sharedStorage: Boolean get() = sharedFolders.isNotEmpty()
+}
+
+data class SandboxHostApp(
+    val packageName: String,
+    val label: String,
+    val version: String,
+    val apkPath: String
+)
+
+data class SandboxUser(
+    val id: Int,
+    val name: String,
+    val appCount: Int
+)
+
+data class SandboxFakeLocation(
+    val latitude: Double,
+    val longitude: Double
 )
 
 data class SandboxApkPreview(
@@ -27,8 +56,11 @@ data class SandboxApkPreview(
 data class SandboxApkInspection(
     val file: File,
     val preview: SandboxApkPreview?,
-    val error: String? = null
-)
+    val error: String? = null,
+    val splitFiles: List<File> = emptyList()
+) {
+    val splitCount: Int get() = splitFiles.size
+}
 
 data class SandboxActionResult(
     val ok: Boolean,
@@ -44,6 +76,8 @@ data class SandboxInstallResult(
 
 object SandboxActions {
     private const val NO_ALL_FILES_ACCESS = "no_all_files_access"
+    private const val MAX_APK_ENTRIES = 64
+    private const val MAX_APK_ENTRY_BYTES = 2L * 1024 * 1024 * 1024
 
     fun hasAllFilesAccess(): Boolean =
         runCatching { BlackBoxCore.get().hasAllFilesAccess() }.getOrDefault(false)
@@ -79,46 +113,160 @@ object SandboxActions {
     }
 
     suspend fun loadApps(context: Context, userId: Int): List<SandboxApp> = withContext(Dispatchers.IO) {
-        BlackBoxCore.get().getInstalledPackages(0, userId).orEmpty().map { info ->
+        BlackBoxCore.get().getInstalledPackages(PackageManager.GET_PERMISSIONS, userId).orEmpty().map { info ->
             SandboxApp(
                 packageName = info.packageName,
                 label = appLabel(context, info),
                 version = formatVersion(info),
-                sharedStorage = runCatching {
-                    BlackBoxCore.get().hasSharedInternalStorageAccess(info.packageName, userId)
-                }.getOrDefault(false)
+                sharedFolders = runCatching {
+                    BlackBoxCore.get().getSharedFolders(info.packageName, userId)
+                }.getOrDefault(emptySet()),
+                minSdk = info.applicationInfo?.minSdkVersion ?: 0,
+                targetSdk = info.applicationInfo?.targetSdkVersion ?: 0,
+                requestedPermissions = info.requestedPermissions?.toList().orEmpty(),
+                userId = userId
             )
         }
     }
 
     suspend fun loadApp(context: Context, packageName: String, userId: Int): SandboxApp? = withContext(Dispatchers.IO) {
         val info = runCatching {
-            BlackBoxCore.getBPackageManager().getPackageInfo(packageName, 0, userId)
+            BlackBoxCore.getBPackageManager().getPackageInfo(packageName, PackageManager.GET_PERMISSIONS, userId)
         }.getOrNull() ?: return@withContext null
         SandboxApp(
             packageName = packageName,
             label = appLabel(context, info),
             version = formatVersion(info),
-            sharedStorage = runCatching {
-                BlackBoxCore.get().hasSharedInternalStorageAccess(packageName, userId)
-            }.getOrDefault(false)
+            sharedFolders = runCatching {
+                BlackBoxCore.get().getSharedFolders(packageName, userId)
+            }.getOrDefault(emptySet()),
+            minSdk = info.applicationInfo?.minSdkVersion ?: 0,
+            targetSdk = info.applicationInfo?.targetSdkVersion ?: 0,
+            requestedPermissions = info.requestedPermissions?.toList().orEmpty(),
+            userId = userId
         )
     }
 
+    private fun displayName(context: Context, uri: Uri): String? {
+        val fromProvider = if (uri.scheme == "content") {
+            context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (index >= 0) cursor.getString(index) else null
+                } else {
+                    null
+                }
+            }
+        } else {
+            null
+        }
+        return fromProvider?.takeIf { it.isNotBlank() }
+            ?: uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
+    }
+
+    private fun packageInfoFor(context: Context, file: File): PackageInfo? =
+        runCatching { context.packageManager.getPackageArchiveInfo(file.absolutePath, 0) }.getOrNull()
+
+    private fun bundleEntryNames(file: File): List<String> = runCatching {
+        ZipFile(file).use { zip ->
+            zip.entries().toList().filter { entry ->
+                !entry.isDirectory &&
+                    entry.name.substringAfterLast('/').endsWith(".apk", ignoreCase = true) &&
+                    entry.name.count { it == '/' } <= 2
+            }.map { it.name }
+        }
+    }.getOrDefault(emptyList())
+
+    private fun uniqueStagedFile(dir: File, rawName: String, used: List<File>): File {
+        val safeName = rawName.replace(Regex("[^A-Za-z0-9._-]"), "_").trim('.').ifEmpty { "apk_${used.size}.apk" }
+        val dot = safeName.lastIndexOf('.')
+        val base = if (dot > 0) safeName.substring(0, dot) else safeName
+        val extension = if (dot > 0) safeName.substring(dot) else ""
+        var candidate = File(dir, safeName)
+        var index = 1
+        while (candidate.exists() || candidate in used) {
+            candidate = File(dir, "$base ($index)$extension")
+            index++
+        }
+        return candidate
+    }
+
+    private fun extractApkEntries(source: File, dir: File, names: List<String>): List<File> {
+        val extracted = mutableListOf<File>()
+        ZipFile(source).use { zip ->
+            for (entryName in names) {
+                val entry = zip.getEntry(entryName) ?: continue
+                val destination = uniqueStagedFile(dir, entryName.substringAfterLast('/'), extracted)
+                zip.getInputStream(entry).use { input ->
+                    destination.outputStream().use { output ->
+                        val buffer = ByteArray(64 * 1024)
+                        var total = 0L
+                        while (true) {
+                            val read = input.read(buffer)
+                            if (read <= 0) break
+                            total += read
+                            if (total > MAX_APK_ENTRY_BYTES) {
+                                throw IllegalStateException("A split APK in this bundle is too large.")
+                            }
+                            output.write(buffer, 0, read)
+                        }
+                    }
+                }
+                extracted += destination
+            }
+        }
+        if (extracted.isEmpty()) throw IllegalStateException("This bundle does not contain any APK files.")
+        return extracted
+    }
+
+    private fun chooseBaseApk(context: Context, files: List<File>): Pair<File, List<File>>? {
+        val parsed = files.mapNotNull { file ->
+            val info = packageInfoFor(context, file)
+            val packageName = info?.packageName?.takeIf { it.isNotBlank() }
+            if (packageName == null) null else Triple(file, info, packageName)
+        }
+        if (parsed.isEmpty()) return null
+        val packageName = parsed.groupBy { it.third }.maxByOrNull { it.value.size }?.key ?: return null
+        val candidates = parsed.filter { it.third == packageName }
+        val base = candidates.firstOrNull { it.first.name.equals("base.apk", ignoreCase = true) }?.first
+            ?: candidates.filter { !it.first.name.contains("split", ignoreCase = true) }
+                .maxByOrNull { it.first.length() }?.first
+            ?: candidates.maxByOrNull { it.first.length() }!!.first
+        val splits = candidates.map { it.first }.filter { it != base }
+        return base to splits
+    }
+
     suspend fun inspectApk(context: Context, uri: Uri, userId: Int): SandboxApkInspection = withContext(Dispatchers.IO) {
-        val file = File(context.cacheDir, "sandbox_${System.currentTimeMillis()}_${(Math.random() * 1_000_000).toInt()}.apk")
+        val token = "${System.currentTimeMillis()}_${(Math.random() * 1_000_000).toInt()}"
+        val dir = File(context.cacheDir, "sandbox_install_$token")
+        dir.mkdirs()
+        val name = displayName(context, uri).orEmpty()
+        val bundleName = listOf(".apks", ".xapk", ".zip").any { name.endsWith(it, ignoreCase = true) }
+        val staged = File(dir, if (bundleName) "bundle.bin" else "base.apk")
         val inspection = try {
             val input = context.contentResolver.openInputStream(uri)
                 ?: throw IllegalStateException("Could not open the selected APK")
-            input.use { source -> file.outputStream().use { source.copyTo(it) } }
-            val info = runCatching {
-                context.packageManager.getPackageArchiveInfo(file.absolutePath, 0)
-            }.getOrNull()
-            val packageName = info?.packageName
-            val preview = if (packageName.isNullOrBlank()) {
+            input.use { source -> staged.outputStream().use { source.copyTo(it) } }
+            val entries = bundleEntryNames(staged)
+            if (entries.size > MAX_APK_ENTRIES) {
+                throw IllegalStateException("This APK bundle has too many split files.")
+            }
+            val files = if (entries.isNotEmpty()) {
+                val extracted = extractApkEntries(staged, dir, entries)
+                runCatching { staged.delete() }
+                val selected = chooseBaseApk(context, extracted)
+                    ?: throw IllegalStateException("Could not identify the base APK in this bundle.")
+                listOf(selected.first) + selected.second
+            } else {
+                listOf(staged)
+            }
+            val file = files.first()
+            val info = packageInfoFor(context, file)
+            val packageName = info?.packageName?.takeIf { it.isNotBlank() }
+            val preview = if (packageName == null) {
                 null
             } else {
-                info.applicationInfo?.sourceDir = file.absolutePath
+                info!!.applicationInfo?.sourceDir = file.absolutePath
                 info.applicationInfo?.publicSourceDir = file.absolutePath
                 SandboxApkPreview(
                     packageName = packageName,
@@ -133,28 +281,42 @@ object SandboxActions {
                     "${preview.label} is already installed in the sandbox. Remove it before installing this APK."
                 else -> null
             }
-            SandboxApkInspection(file, preview, error)
+            SandboxApkInspection(file, preview, error, files.drop(1))
         } catch (error: Throwable) {
-            runCatching { file.delete() }
-            SandboxApkInspection(file, null, "Could not read APK: ${errorText(error)}")
+            SandboxApkInspection(staged, null, "Could not read APK: ${errorText(error)}")
         }
-        if (inspection.error != null) runCatching { file.delete() }
+        if (inspection.error != null) discardInspection(inspection)
         inspection
     }
 
     fun discardInspection(inspection: SandboxApkInspection) {
-        runCatching { inspection.file.delete() }
+        (listOf(inspection.file) + inspection.splitFiles).forEach { runCatching { it.delete() } }
+        inspection.file.parentFile?.takeIf { it.name.startsWith("sandbox_install_") }?.let { runCatching { it.deleteRecursively() } }
     }
 
-    suspend fun installApk(inspection: SandboxApkInspection, userId: Int): SandboxInstallResult = withContext(Dispatchers.IO) {
+    suspend fun installApk(context: Context, inspection: SandboxApkInspection, userId: Int): SandboxInstallResult = withContext(Dispatchers.IO) {
         try {
-            val result = runCatching { BlackBoxCore.get().installPackageAsUser(inspection.file, userId) }
+            val result = runCatching {
+                BlackBoxCore.get().installSplitPackageAsUser(inspection.file, inspection.splitFiles, userId)
+            }
             result.fold(
                 onSuccess = { install ->
                     if (install.success) {
+                        val installedPackage = install.packageName?.takeIf { it.isNotBlank() }
+                            ?: inspection.preview?.packageName
+                        var appliedDefaults = false
+                        if (installedPackage != null && SandboxPrefs.applyDefaultsOnInstall(context)) {
+                            val folders = SandboxPrefs.defaultSharedFolders(context)
+                            if (folders.isNotEmpty() && (!needsAllFilesAccessPrompt() || hasAllFilesAccess())) {
+                                runCatching {
+                                    BlackBoxCore.get().setSharedFolders(installedPackage, userId, folders)
+                                }.onSuccess { appliedDefaults = true }
+                            }
+                        }
                         SandboxInstallResult(
                             ok = true,
-                            message = "Installed ${install.packageName ?: inspection.preview?.label ?: "APK"} in the sandbox.",
+                            message = "Installed ${install.packageName ?: inspection.preview?.label ?: "APK"} in the sandbox." +
+                                if (appliedDefaults) " Default shared folders applied." else "",
                             preview = inspection.preview
                         )
                     } else {
@@ -265,14 +427,14 @@ object SandboxActions {
         )
     }
 
-    suspend fun setSharedStorage(
+    suspend fun setSharedFolders(
         packageName: String,
         label: String,
         userId: Int,
-        enabled: Boolean,
+        folders: Set<String>,
         allFilesGranted: Boolean = hasAllFilesAccess()
     ): SandboxActionResult = withContext(Dispatchers.IO) {
-        if (enabled && needsAllFilesAccessPrompt() && !allFilesGranted) {
+        if (folders.isNotEmpty() && needsAllFilesAccessPrompt() && !allFilesGranted) {
             SandboxActionResult(
                 ok = false,
                 message = "Grant all files access before enabling shared folders.",
@@ -280,20 +442,256 @@ object SandboxActions {
             )
         } else {
             runCatching {
-                BlackBoxCore.get().setSharedInternalStorageAccess(packageName, userId, enabled)
+                BlackBoxCore.get().setSharedFolders(packageName, userId, folders)
                 BlackBoxCore.get().stopPackage(packageName, userId)
-                BlackBoxCore.get().hasSharedInternalStorageAccess(packageName, userId)
+                BlackBoxCore.get().getSharedFolders(packageName, userId)
             }.fold(
                 onSuccess = { active ->
-                    SandboxActionResult(
-                        ok = true,
-                        message = if (active) "Shared folders enabled for $label. Relaunch it to apply."
-                        else "Virtual storage restored for $label. Relaunch it to apply."
-                    )
+                    val summary = if (active.isEmpty()) "Virtual storage restored"
+                    else "Shared folders enabled: ${active.sorted().joinToString(", ")}"
+                    SandboxActionResult(true, "$summary for $label. Relaunch it to apply.")
                 },
                 onFailure = { SandboxActionResult(false, "Could not change storage access: ${errorText(it)}") }
             )
         }
+    }
+
+    suspend fun setSharedFolder(
+        packageName: String,
+        label: String,
+        userId: Int,
+        folder: String,
+        enabled: Boolean,
+        allFilesGranted: Boolean = hasAllFilesAccess()
+    ): SandboxActionResult = withContext(Dispatchers.IO) {
+        val current = runCatching {
+            BlackBoxCore.get().getSharedFolders(packageName, userId)
+        }.getOrDefault(emptySet()).toMutableSet()
+        if (enabled) current.add(folder) else current.remove(folder)
+        setSharedFolders(packageName, label, userId, current, allFilesGranted)
+    }
+
+    suspend fun setSharedStorage(
+        packageName: String,
+        label: String,
+        userId: Int,
+        enabled: Boolean,
+        allFilesGranted: Boolean = hasAllFilesAccess()
+    ): SandboxActionResult = setSharedFolders(
+        packageName,
+        label,
+        userId,
+        if (enabled) SandboxStorageFolders.ALL else emptySet(),
+        allFilesGranted
+    )
+
+    suspend fun loadHostApps(context: Context): List<SandboxHostApp> = withContext(Dispatchers.IO) {
+        runCatching {
+            context.packageManager.getInstalledPackages(0).orEmpty()
+        }.getOrDefault(emptyList()).mapNotNull { info ->
+            val appInfo = info.applicationInfo ?: return@mapNotNull null
+            val apkPath = appInfo.sourceDir?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            if (info.packageName == context.packageName) return@mapNotNull null
+            if (appInfo.flags and ApplicationInfo.FLAG_SYSTEM != 0) return@mapNotNull null
+            SandboxHostApp(
+                packageName = info.packageName,
+                label = appLabel(context, info),
+                version = formatVersion(info),
+                apkPath = apkPath
+            )
+        }.sortedBy { it.label.lowercase() }
+    }
+
+    suspend fun cloneHostApp(
+        context: Context,
+        packageName: String,
+        label: String,
+        userId: Int
+    ): SandboxInstallResult = withContext(Dispatchers.IO) {
+        runCatching { BlackBoxCore.get().installPackageAsUser(packageName, userId) }.fold(
+            onSuccess = { install ->
+                if (install.success) {
+                    val appliedDefaults = applyInstallDefaults(context, install.packageName ?: packageName, userId)
+                    SandboxInstallResult(
+                        ok = true,
+                        message = "Cloned $label into sandbox user $userId." +
+                            if (appliedDefaults) " Default shared folders applied." else "",
+                        preview = SandboxApkPreview(
+                            packageName = install.packageName ?: packageName,
+                            label = label,
+                            version = ""
+                        )
+                    )
+                } else {
+                    SandboxInstallResult(
+                        ok = false,
+                        message = "Clone failed: ${friendlyInstallError(install.msg)}"
+                    )
+                }
+            },
+            onFailure = { SandboxInstallResult(false, "Clone failed: ${errorText(it)}") }
+        )
+    }
+
+    suspend fun cloneToUser(
+        context: Context,
+        app: SandboxApp,
+        targetUserId: Int
+    ): SandboxInstallResult = withContext(Dispatchers.IO) {
+        runCatching {
+            val info = BlackBoxCore.getBPackageManager()
+                .getPackageInfo(app.packageName, 0, app.userId)
+            val apkPath = info.applicationInfo?.sourceDir?.takeIf { File(it).exists() }
+                ?: throw IllegalStateException("No installed APK found for ${app.label}")
+            if (BlackBoxCore.get().isInstalled(app.packageName, targetUserId)) {
+                throw IllegalStateException("${app.label} is already installed in sandbox user $targetUserId")
+            }
+            val install = BlackBoxCore.get().installPackageAsUser(File(apkPath), targetUserId)
+            if (!install.success) {
+                SandboxInstallResult(false, "Clone failed: ${friendlyInstallError(install.msg)}")
+            } else {
+                val appliedDefaults = applyInstallDefaults(context, app.packageName, targetUserId)
+                SandboxInstallResult(
+                    ok = true,
+                    message = "Cloned ${app.label} into sandbox user $targetUserId." +
+                        if (appliedDefaults) " Default shared folders applied." else "",
+                    preview = SandboxApkPreview(app.packageName, app.label, app.version)
+                )
+            }
+        }.getOrElse { SandboxInstallResult(false, "Clone failed: ${errorText(it)}") }
+    }
+
+    suspend fun users(): List<SandboxUser> = withContext(Dispatchers.IO) {
+        runCatching {
+            BlackBoxCore.get().getUsers().orEmpty().map { user ->
+                val count = runCatching {
+                    BlackBoxCore.get().getInstalledPackages(0, user.id).orEmpty().size
+                }.getOrDefault(0)
+                SandboxUser(id = user.id, name = user.name?.takeIf { it.isNotBlank() } ?: "User ${user.id}", appCount = count)
+            }.sortedBy { it.id }
+        }.getOrDefault(listOf(SandboxUser(0, "User 0", 0)))
+    }
+
+    suspend fun createUser(): SandboxActionResult = withContext(Dispatchers.IO) {
+        runCatching {
+            val existing = BlackBoxCore.get().getUsers().orEmpty().map { it.id }.toSet()
+            val nextId = generateSequence(1) { it + 1 }.first { it !in existing }
+            val user = BlackBoxCore.get().createUser(nextId)
+            if (user == null) {
+                SandboxActionResult(false, "Could not create sandbox user.")
+            } else {
+                SandboxActionResult(true, "Created sandbox user $nextId.")
+            }
+        }.getOrElse { SandboxActionResult(false, "Could not create user: ${errorText(it)}") }
+    }
+
+    suspend fun deleteUser(userId: Int): SandboxActionResult = withContext(Dispatchers.IO) {
+        if (userId == 0) {
+            SandboxActionResult(false, "The default sandbox user cannot be deleted.")
+        } else {
+            runCatching {
+                BlackBoxCore.get().deleteUser(userId)
+                SandboxActionResult(true, "Deleted sandbox user $userId and its apps.")
+            }.getOrElse { SandboxActionResult(false, "Could not delete user: ${errorText(it)}") }
+        }
+    }
+
+    suspend fun isRunning(packageName: String, userId: Int): Boolean = withContext(Dispatchers.IO) {
+        runCatching { BlackBoxCore.isRunningApplication(packageName, userId) }.getOrDefault(false)
+    }
+
+    suspend fun stopRunningApps(userId: Int) = withContext(Dispatchers.IO) {
+        stopRunningAppsNow(userId)
+    }
+
+    fun stopRunningAppsNow(userId: Int) {
+        runCatching {
+            BlackBoxCore.get().getInstalledPackages(0, userId).orEmpty().forEach { info ->
+                if (BlackBoxCore.isRunningApplication(info.packageName, userId)) {
+                    runCatching { BlackBoxCore.get().stopPackage(info.packageName, userId) }
+                }
+            }
+        }
+    }
+
+    fun fakeLocation(packageName: String, userId: Int): SandboxFakeLocation? = runCatching {
+        val location = BLocationManager.get().getLocation(userId, packageName)
+        if (location == null || location.isEmpty()) null
+        else SandboxFakeLocation(location.latitude, location.longitude)
+    }.getOrNull()
+
+    fun globalFakeLocation(): SandboxFakeLocation? = runCatching {
+        val location = BLocationManager.get().getGlobalLocation()
+        if (location == null || location.isEmpty()) null
+        else SandboxFakeLocation(location.latitude, location.longitude)
+    }.getOrNull()
+
+    fun setFakeLocation(
+        packageName: String,
+        userId: Int,
+        location: SandboxFakeLocation?
+    ): SandboxActionResult = runCatching {
+        if (location == null) {
+            BLocationManager.disableFakeLocation(userId, packageName)
+            SandboxActionResult(true, "Fake location disabled for $packageName.")
+        } else {
+            validateCoordinates(location)
+            BLocationManager.get().setLocation(userId, packageName, BLocation(location.latitude, location.longitude))
+            BLocationManager.get().setPattern(userId, packageName, BLocationManager.OWN_MODE)
+            SandboxActionResult(true, "Fake location set for $packageName.")
+        }
+    }.getOrElse { SandboxActionResult(false, "Could not set fake location: ${errorText(it)}") }
+
+    fun useGlobalFakeLocation(packageName: String, userId: Int): SandboxActionResult = runCatching {
+        if (globalFakeLocation() == null) {
+            SandboxActionResult(false, "Set a global fake location first.")
+        } else {
+            BLocationManager.get().setPattern(userId, packageName, BLocationManager.GLOBAL_MODE)
+            SandboxActionResult(true, "$packageName now uses the global fake location.")
+        }
+    }.getOrElse { SandboxActionResult(false, "Could not set fake location mode: ${errorText(it)}") }
+
+    fun setGlobalFakeLocation(
+        location: SandboxFakeLocation?,
+        applyToAll: Boolean,
+        apps: List<SandboxApp>
+    ): SandboxActionResult = runCatching {
+        if (location == null) {
+            apps.forEach { app: SandboxApp ->
+                runCatching { BLocationManager.disableFakeLocation(app.userId, app.packageName) }
+            }
+            BLocationManager.get().setGlobalLocation(null)
+            SandboxActionResult(true, "Global fake location cleared.")
+        } else {
+            validateCoordinates(location)
+            BLocationManager.get().setGlobalLocation(BLocation(location.latitude, location.longitude))
+            if (applyToAll) {
+                apps.forEach { app ->
+                    runCatching {
+                        BLocationManager.get().setPattern(app.userId, app.packageName, BLocationManager.GLOBAL_MODE)
+                    }
+                }
+            }
+            SandboxActionResult(
+                true,
+                if (applyToAll) "Global fake location applied to all sandbox apps."
+                else "Global fake location saved. Apps using the global pattern will receive it."
+            )
+        }
+    }.getOrElse { SandboxActionResult(false, "Could not set global fake location: ${errorText(it)}") }
+
+    private fun validateCoordinates(location: SandboxFakeLocation) {
+        require(location.latitude in -90.0..90.0) { "Latitude must be between -90 and 90." }
+        require(location.longitude in -180.0..180.0) { "Longitude must be between -180 and 180." }
+    }
+
+    private fun applyInstallDefaults(context: Context, packageName: String, userId: Int): Boolean {
+        if (!SandboxPrefs.applyDefaultsOnInstall(context)) return false
+        val folders = SandboxPrefs.defaultSharedFolders(context)
+        if (folders.isEmpty() || (needsAllFilesAccessPrompt() && !hasAllFilesAccess())) return false
+        return runCatching {
+            BlackBoxCore.get().setSharedFolders(packageName, userId, folders)
+        }.isSuccess
     }
 
     suspend fun environmentReport(): String = withContext(Dispatchers.IO) {

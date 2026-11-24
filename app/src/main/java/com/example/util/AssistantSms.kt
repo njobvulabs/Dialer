@@ -34,6 +34,97 @@ data class AssistantConversation(
     val simSlot: Int = 0
 )
 
+data class SmsDeletedConversation(
+    val deletedAt: Long
+)
+
+object SmsConversationDeletes {
+    private const val PREFS = "sms"
+    private const val KEY = "deleted_conversations"
+
+    fun keyFor(number: String): String {
+        val value = number.trim()
+        if (value.isEmpty()) return ""
+        if (value.any { it.isLetter() }) {
+            val normalized = value.filter { it.isLetterOrDigit() }.lowercase(Locale.ROOT)
+            if (normalized.isEmpty()) return ""
+            return "alpha:$normalized"
+        }
+        return value.filter { it.isDigit() }.takeLast(9)
+    }
+
+    fun mark(context: Context, address: String) {
+        val key = keyFor(address)
+        if (key.isEmpty()) return
+        val entry = "${System.currentTimeMillis()}|$key"
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val current = prefs.getStringSet(KEY, emptySet<String>()).orEmpty().toMutableSet()
+        current.removeAll { keyIn(it) == key }
+        current.add(entry)
+        prefs.edit().putStringSet(KEY, current).apply()
+    }
+
+    fun read(context: Context): Map<String, SmsDeletedConversation> {
+        val result = HashMap<String, SmsDeletedConversation>()
+        val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getStringSet(KEY, emptySet<String>()).orEmpty()
+        for (entry in raw) {
+            val parts = entry.split('|')
+            if (parts.size < 2) continue
+            val key = parts[1]
+            if (key.isEmpty()) continue
+            val marker = SmsDeletedConversation(parts[0].toLongOrNull() ?: 0L)
+            val existing = result[key]
+            if (existing == null || marker.deletedAt >= existing.deletedAt) {
+                result[key] = marker
+            }
+        }
+        return result
+    }
+
+    fun clear(context: Context, addresses: Collection<String>) {
+        clearKeys(context, addresses.map(::keyFor).toSet())
+    }
+
+    fun unhideIncoming(context: Context) {
+        val deleted = read(context)
+        if (deleted.isEmpty() || !AssistantSms.hasReadSms(context)) return
+        val oldestDeletedAt = deleted.values.minOf { it.deletedAt }
+        val keys = HashSet<String>()
+        runCatching {
+            context.contentResolver.query(
+                Uri.parse("content://sms"),
+                arrayOf("address", "date"),
+                "type = 1 AND date > ?",
+                arrayOf(oldestDeletedAt.toString()),
+                "date ASC"
+            )?.use { cursor ->
+                val iAddress = cursor.getColumnIndex("address")
+                val iDate = cursor.getColumnIndex("date")
+                while (cursor.moveToNext()) {
+                    val key = keyFor(if (iAddress >= 0) cursor.getString(iAddress).orEmpty() else "")
+                    val marker = deleted[key] ?: continue
+                    val date = if (iDate >= 0) cursor.getLong(iDate) else 0L
+                    if (date > marker.deletedAt) keys.add(key)
+                }
+            }
+        }
+        clearKeys(context, keys)
+    }
+
+    private fun clearKeys(context: Context, keys: Set<String>) {
+        if (keys.isEmpty()) return
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val current = prefs.getStringSet(KEY, emptySet<String>()).orEmpty().toMutableSet()
+        if (current.removeAll { keyIn(it) in keys }) {
+            prefs.edit().putStringSet(KEY, current).apply()
+        }
+    }
+
+    private fun keyIn(entry: String): String =
+        entry.split('|').getOrNull(1).orEmpty()
+}
+
 data class AssistantSmsMessage(
     val id: Long,
     val address: String,
@@ -86,13 +177,14 @@ object AssistantSms {
                     val iSub = cursor.subIdColumn()
                     while (cursor.moveToNext()) {
                         val threadId = cursor.getLong(iThread)
+                        val address = if (iAddress >= 0) cursor.getString(iAddress) ?: "" else ""
                         val subId = if (iSub >= 0) cursor.getLong(iSub) else -1L
                         val read = if (iRead >= 0) cursor.getInt(iRead) else 1
                         if (read == 0) unreadByThread[threadId] = (unreadByThread[threadId] ?: 0) + 1
                         if (!byThread.containsKey(threadId)) {
                             byThread[threadId] = AssistantConversation(
                                 threadId = threadId,
-                                address = if (iAddress >= 0) cursor.getString(iAddress) ?: "" else "",
+                                address = address,
                                 body = if (iBody >= 0) cursor.getString(iBody) ?: "" else "",
                                 date = if (iDate >= 0) cursor.getLong(iDate) else 0L,
                                 unreadCount = unreadByThread[threadId] ?: 0,
@@ -121,21 +213,11 @@ object AssistantSms {
             } catch (e: Exception) {
                 return@withContext AssistantSmsResult(emptyList(), "Couldn't read SMS: ${e.message}")
             }
-            val deleted = readDeletedConversations(context)
-            val restored = HashSet<String>()
+            SmsConversationDeletes.unhideIncoming(context)
+            val hidden = SmsConversationDeletes.read(context).keys
             val visible = byThread.values.filter { conversation ->
-                val key = normalizeNumber(conversation.address)
-                val deletedAt = deleted[key]
-                when {
-                    deletedAt == null -> true
-                    conversation.date > deletedAt -> {
-                        restored += key
-                        true
-                    }
-                    else -> false
-                }
+                SmsConversationDeletes.keyFor(conversation.address) !in hidden
             }
-            if (restored.isNotEmpty()) clearDeletedConversations(context, restored)
             AssistantSmsResult(visible.sortedByDescending { it.date })
         }
 
@@ -309,6 +391,7 @@ object AssistantSms {
             } else {
                 manager.sendTextMessage(number, null, text, sentPendingIntent(context, localId, 0), delivered)
             }
+            SmsConversationDeletes.clear(context, listOf(number))
             adoptRealThreadIdAfterSend(context, repo, threadId, number)
             null
         } catch (e: Exception) {
@@ -505,29 +588,6 @@ object AssistantSms {
             SmsManager.getSmsManagerForSubscriptionId(subId)
         } else {
             context.getSystemService(SmsManager::class.java)
-        }
-    }
-
-    private fun readDeletedConversations(context: Context): Map<String, Long> {
-        val raw = context.getSharedPreferences("sms", Context.MODE_PRIVATE)
-            .getStringSet("deleted_conversations", null) ?: return emptyMap()
-        val result = HashMap<String, Long>(raw.size)
-        raw.forEach { entry ->
-            val separator = entry.indexOf('|')
-            if (separator > 0) {
-                val timestamp = entry.substring(0, separator).toLongOrNull() ?: return@forEach
-                result[entry.substring(separator + 1)] = timestamp
-            }
-        }
-        return result
-    }
-
-    private fun clearDeletedConversations(context: Context, keys: Set<String>) {
-        if (keys.isEmpty()) return
-        val prefs = context.getSharedPreferences("sms", Context.MODE_PRIVATE)
-        val current = prefs.getStringSet("deleted_conversations", null)?.toMutableSet() ?: mutableSetOf()
-        if (current.removeAll { it.substringAfter('|') in keys }) {
-            prefs.edit().putStringSet("deleted_conversations", current).apply()
         }
     }
 }

@@ -34,6 +34,7 @@ public class BLocation implements Parcelable {
         dest.writeFloat(this.mSpeed);
         dest.writeFloat(this.mBearing);
         dest.writeFloat(this.mAccuracy);
+
     }
 
     public double getLatitude() {
@@ -56,13 +57,25 @@ public class BLocation implements Parcelable {
         this.mLatitude = in.readDouble();
         this.mLongitude = in.readDouble();
         this.mAltitude = in.readDouble();
-        this.mAccuracy = in.readFloat();
         this.mSpeed = in.readFloat();
         this.mBearing = in.readFloat();
+        this.mAccuracy = in.readFloat();
     }
 
     public boolean isEmpty() {
         return mLatitude == 0 && mLongitude == 0;
+    }
+
+    public float getAccuracy() {
+        return mAccuracy;
+    }
+
+    public float getSpeed() {
+        return mSpeed;
+    }
+
+    public float getBearing() {
+        return mBearing;
     }
 
     public static final Parcelable.Creator<BLocation> CREATOR = new Parcelable.Creator<BLocation>() {

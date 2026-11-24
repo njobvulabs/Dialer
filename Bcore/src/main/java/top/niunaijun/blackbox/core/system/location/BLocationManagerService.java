@@ -95,7 +95,7 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
     @Override
     public void setNeighboringCell(int userId, String pkg, List<BCell> cells) {
         synchronized (mLocationConfigs) {
-            getOrCreateConfig(userId, pkg).allCell = cells;
+            getOrCreateConfig(userId, pkg).neighboringCellInfo = cells;
             save();
         }
     }
@@ -103,7 +103,11 @@ public class BLocationManagerService extends IBLocationManagerService.Stub imple
     @Override
     public List<BCell> getNeighboringCell(int userId, String pkg) {
         synchronized (mLocationConfigs) {
-            return getOrCreateConfig(userId, pkg).allCell;
+            BLocationConfig config = getOrCreateConfig(userId, pkg);
+            if (config.pattern == BLocationManager.GLOBAL_MODE) {
+                return mGlobalConfig.neighboringCellInfo;
+            }
+            return config.pattern == BLocationManager.OWN_MODE ? config.neighboringCellInfo : null;
         }
     }
 
