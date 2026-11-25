@@ -599,9 +599,13 @@ sandbox, and then lists sandboxed apps with **Launch**, **Stop**, **Clear**, **I
 - **Split APK bundles are supported** — the picker accepts `.apk`, `.apks`, `.xapk`, and
   `.zip`. Bundles are staged in app cache, APK entries are bounded (64 files, 2 GiB each),
   and the installer keeps `base.apk` plus split code paths, native libraries, and asset paths
-  intact.
+  intact. Cloning an installed app, including **Clone to another user**, preserves the same
+  split APK paths and refuses the clone if a configured split is missing.
 - **Install and launch errors are explained** — install preflight rejects sandboxing
-  NJ-Dialer itself or reinstalling an existing package, and launch failures show a specific
+  NJ-Dialer itself or reinstalling an existing package, and the confirm dialog now shows
+  min/target SDK, native ABIs, and warnings for device-version mismatches or split bundles
+  without `base.apk`. It also repeats the limits for Google Play services, Play Integrity,
+  banking/anti-tamper apps, and 32-bit-only native code. Launch failures show a specific
   reason when an app needs all-files access, 32-bit native libraries, or a relaunch after a
   storage-mode change.
 - **Shared folders are opt-in per app and per folder** — each app’s ⋮ menu can enable or
@@ -629,7 +633,7 @@ sandbox, and then lists sandboxed apps with **Launch**, **Stop**, **Clear**, **I
 - **Best for simple utility APKs** — apps that depend on Google Play services, Play
   Integrity, banking/anti-tamper protections, or 32-bit-only native libraries are likely to
   fail. Verified working on-device with a small notes APK.
-- **Not a security boundary** — sandboxed apps run in a separate `:sandbox0` process, but
+- **Not a security boundary** — sandboxed apps run in separate `:p<number>` processes, but
   they still use NJ-Dialer's UID and Android permissions. Do not treat it as isolation for
   untrusted apps.
 

@@ -1407,7 +1407,22 @@ public class BlackBoxCore extends ClientConfiguration {
             }
             
             PackageInfo packageInfo = getPackageManager().getPackageInfo(packageName, 0);
-            return getBPackageManager().installPackageAsUser(packageInfo.applicationInfo.sourceDir, InstallOption.installBySystem(), userId);
+            ApplicationInfo appInfo = packageInfo.applicationInfo;
+            if (appInfo == null || appInfo.sourceDir == null) {
+                return new InstallResult().installError("No APK path found for " + packageName);
+            }
+            List<String> splits = new ArrayList<>();
+            if (appInfo.splitSourceDirs != null) {
+                for (String split : appInfo.splitSourceDirs) {
+                    if (split != null && new File(split).exists()) {
+                        splits.add(split);
+                    }
+                }
+            }
+            if (!splits.isEmpty()) {
+                return getBPackageManager().installSplitPackageAsUser(appInfo.sourceDir, splits, InstallOption.installBySystem(), userId);
+            }
+            return getBPackageManager().installPackageAsUser(appInfo.sourceDir, InstallOption.installBySystem(), userId);
         } catch (PackageManager.NameNotFoundException e) {
             e.printStackTrace();
             return new InstallResult().installError(e.getMessage());

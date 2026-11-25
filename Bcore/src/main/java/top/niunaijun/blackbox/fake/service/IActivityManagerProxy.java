@@ -132,7 +132,7 @@ public class IActivityManagerProxy extends ClassInvocationStub {
 
     @ProxyMethod("getContentProvider")
     public static class GetContentProvider extends MethodHook {
-        private static boolean keepSafBridgeEnabled() {
+        static boolean keepSafBridgeEnabled() {
             try {
                 return BlackBoxCore.getContext()
                         .getSharedPreferences("sandbox", Context.MODE_PRIVATE)
@@ -897,7 +897,11 @@ public class IActivityManagerProxy extends ClassInvocationStub {
     public static class checkUriPermission extends MethodHook {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            return PERMISSION_GRANTED;
+            if (GetContentProvider.keepSafBridgeEnabled()
+                    && SharedStorageConfig.has(BActivityThread.getAppPackageName(), BActivityThread.getUserId())) {
+                return PERMISSION_GRANTED;
+            }
+            return method.invoke(who, args);
         }
     }
 

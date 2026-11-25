@@ -44,7 +44,6 @@ public class ActivityManagerCommonProxy {
     public static class StartActivity extends MethodHook {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            MethodParameterUtils.replaceFirstAppPkg(args);
             Intent intent = getIntent(args);
             Slog.d(TAG, "Hook in : " + intent);
             assert intent != null;
@@ -52,7 +51,8 @@ public class ActivityManagerCommonProxy {
             if (maybeRedirectAppSettings(intent)) {
                 return method.invoke(who, args);
             }
-            
+            MethodParameterUtils.replaceFirstAppPkg(args);
+
             if (intent.getParcelableExtra("_B_|_target_") != null) {
                 return method.invoke(who, args);
             }

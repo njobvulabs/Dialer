@@ -53,11 +53,19 @@ data class SandboxApkPreview(
     val version: String
 )
 
+data class SandboxApkCompatibility(
+    val minSdk: Int = 0,
+    val targetSdk: Int = 0,
+    val nativeAbis: Set<String> = emptySet(),
+    val warnings: List<String> = emptyList()
+)
+
 data class SandboxApkInspection(
     val file: File,
     val preview: SandboxApkPreview?,
     val error: String? = null,
-    val splitFiles: List<File> = emptyList()
+    val splitFiles: List<File> = emptyList(),
+    val compatibility: SandboxApkCompatibility = SandboxApkCompatibility()
 ) {
     val splitCount: Int get() = splitFiles.size
 }
@@ -78,6 +86,7 @@ object SandboxActions {
     private const val NO_ALL_FILES_ACCESS = "no_all_files_access"
     private const val MAX_APK_ENTRIES = 64
     private const val MAX_APK_ENTRY_BYTES = 2L * 1024 * 1024 * 1024
+    private const val MAX_NATIVE_ABI_ENTRIES = 4096
 
     fun hasAllFilesAccess(): Boolean =
         runCatching { BlackBoxCore.get().hasAllFilesAccess() }.getOrDefault(false)
@@ -103,6 +112,49 @@ object SandboxActions {
             versionCode.isNullOrBlank() -> versionName
             else -> "$versionName ($versionCode)"
         }
+    }
+
+    private fun nativeAbisIn(files: List<File>): Set<String> {
+        val found = linkedSetOf<String>()
+        var scanned = 0
+        for (file in files) {
+            runCatching {
+                ZipFile(file).use { zip ->
+                    val entries = zip.entries()
+                    while (entries.hasMoreElements() && scanned < MAX_NATIVE_ABI_ENTRIES) {
+                        val name = entries.nextElement().name
+                        scanned++
+                        if (!name.startsWith("lib/")) continue
+                        val abi = name.removePrefix("lib/").substringBefore('/', "")
+                        if (abi.isNotBlank()) found.add(abi)
+                    }
+                }
+            }
+            if (scanned >= MAX_NATIVE_ABI_ENTRIES) break
+        }
+        return found
+    }
+
+    private fun compatibilityFor(info: PackageInfo?, files: List<File>): SandboxApkCompatibility {
+        val appInfo = info?.applicationInfo
+        val minSdk = appInfo?.minSdkVersion ?: 0
+        val targetSdk = appInfo?.targetSdkVersion ?: 0
+        val nativeAbis = nativeAbisIn(files)
+        val warnings = mutableListOf<String>()
+        if (minSdk > Build.VERSION.SDK_INT) {
+            warnings += "Requires Android API $minSdk, but this device is API ${Build.VERSION.SDK_INT}."
+        }
+        if (targetSdk > Build.VERSION.SDK_INT) {
+            warnings += "Targets API $targetSdk, so behavior may differ on this device."
+        }
+        when {
+            nativeAbis.isEmpty() -> Unit
+            !nativeAbis.contains("arm64-v8a") ->
+                warnings += "Native libraries are for ${nativeAbis.sorted().joinToString(", ")}. This sandbox supports only arm64-v8a."
+            nativeAbis.any { it != "arm64-v8a" } ->
+                warnings += "Contains native libraries for ${nativeAbis.sorted().joinToString(", ")}. Only arm64-v8a code will work."
+        }
+        return SandboxApkCompatibility(minSdk, targetSdk, nativeAbis, warnings)
     }
 
     private fun appLabel(context: Context, info: PackageInfo?): String {
@@ -262,6 +314,12 @@ object SandboxActions {
             }
             val file = files.first()
             val info = packageInfoFor(context, file)
+            val compatibilityBase = compatibilityFor(info, files)
+            val compatibilityWarnings = compatibilityBase.warnings.toMutableList()
+            if (bundleName && entries.isNotEmpty() && files.none { it.name.equals("base.apk", ignoreCase = true) }) {
+                compatibilityWarnings += "Bundle has split APKs but no base.apk; using the largest APK as the base."
+            }
+            val compatibility = compatibilityBase.copy(warnings = compatibilityWarnings)
             val packageName = info?.packageName?.takeIf { it.isNotBlank() }
             val preview = if (packageName == null) {
                 null
@@ -281,7 +339,7 @@ object SandboxActions {
                     "${preview.label} is already installed in the sandbox. Remove it before installing this APK."
                 else -> null
             }
-            SandboxApkInspection(file, preview, error, files.drop(1))
+            SandboxApkInspection(file, preview, error, files.drop(1), compatibility)
         } catch (error: Throwable) {
             SandboxApkInspection(staged, null, "Could not read APK: ${errorText(error)}")
         }
@@ -508,7 +566,23 @@ object SandboxActions {
         label: String,
         userId: Int
     ): SandboxInstallResult = withContext(Dispatchers.IO) {
-        runCatching { BlackBoxCore.get().installPackageAsUser(packageName, userId) }.fold(
+        runCatching {
+            val info = context.packageManager.getPackageInfo(packageName, 0)
+            val appInfo = info.applicationInfo
+                ?: throw IllegalStateException("No application info for $label")
+            val apkPath = appInfo.sourceDir?.takeIf { File(it).exists() }
+                ?: throw IllegalStateException("No installed APK found for $label")
+            val configuredSplits = appInfo.splitSourceDirs?.filterNotNull().orEmpty()
+            val splitFiles = configuredSplits.map(::File).filter { it.exists() }
+            if (configuredSplits.isNotEmpty() && splitFiles.size != configuredSplits.size) {
+                throw IllegalStateException("Some split APK files are missing for $label")
+            }
+            if (splitFiles.isEmpty()) {
+                BlackBoxCore.get().installPackageAsUser(File(apkPath), userId)
+            } else {
+                BlackBoxCore.get().installSplitPackageAsUser(File(apkPath), splitFiles, userId)
+            }
+        }.fold(
             onSuccess = { install ->
                 if (install.success) {
                     val appliedDefaults = applyInstallDefaults(context, install.packageName ?: packageName, userId)
@@ -541,12 +615,23 @@ object SandboxActions {
         runCatching {
             val info = BlackBoxCore.getBPackageManager()
                 .getPackageInfo(app.packageName, 0, app.userId)
-            val apkPath = info.applicationInfo?.sourceDir?.takeIf { File(it).exists() }
+            val appInfo = info.applicationInfo
+                ?: throw IllegalStateException("No installed application info for ${app.label}")
+            val apkPath = appInfo.sourceDir?.takeIf { File(it).exists() }
                 ?: throw IllegalStateException("No installed APK found for ${app.label}")
+            val configuredSplits = appInfo.splitSourceDirs?.filterNotNull().orEmpty()
+            val splitFiles = configuredSplits.map(::File).filter { it.exists() }
+            if (configuredSplits.isNotEmpty() && splitFiles.size != configuredSplits.size) {
+                throw IllegalStateException("Some split APK files are missing for ${app.label}")
+            }
             if (BlackBoxCore.get().isInstalled(app.packageName, targetUserId)) {
                 throw IllegalStateException("${app.label} is already installed in sandbox user $targetUserId")
             }
-            val install = BlackBoxCore.get().installPackageAsUser(File(apkPath), targetUserId)
+            val install = if (splitFiles.isEmpty()) {
+                BlackBoxCore.get().installPackageAsUser(File(apkPath), targetUserId)
+            } else {
+                BlackBoxCore.get().installSplitPackageAsUser(File(apkPath), splitFiles, targetUserId)
+            }
             if (!install.success) {
                 SandboxInstallResult(false, "Clone failed: ${friendlyInstallError(install.msg)}")
             } else {

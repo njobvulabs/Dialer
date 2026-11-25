@@ -1090,6 +1090,7 @@ fun SandboxScreen(viewModel: MainViewModel) {
 
     pendingInstall?.let { inspection ->
         val preview = inspection.preview
+        val compatibility = inspection.compatibility
         AlertDialog(
             onDismissRequest = {
                 SandboxActions.discardInspection(inspection)
@@ -1114,6 +1115,25 @@ fun SandboxScreen(viewModel: MainViewModel) {
                     Text("App: ${preview?.label ?: "Unknown"}")
                     Text("Package: ${preview?.packageName ?: "Unknown"}")
                     Text("Version: ${preview?.version ?: "Unknown"}")
+                    Text("Min SDK: ${compatibility.minSdk.takeIf { it > 0 }?.toString() ?: "Unknown"}")
+                    Text("Target SDK: ${compatibility.targetSdk.takeIf { it > 0 }?.toString() ?: "Unknown"}")
+                    if (compatibility.nativeAbis.isNotEmpty()) {
+                        Text("Native libs: ${compatibility.nativeAbis.sorted().joinToString(", ")}")
+                    }
+                    compatibility.warnings.forEach { warning ->
+                        Text(
+                            warning,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "Compatibility limit: apps that depend on Google Play services, Play Integrity, " +
+                            "banking/anti-tamper protections, or 32-bit-only native code are likely to fail.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             },
             confirmButton = {

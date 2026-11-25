@@ -193,6 +193,7 @@ fun FileManagerScreen(
     // Multi-Select Mode
     var isMultiSelectActive by remember { mutableStateOf(false) }
     var selectedItems by remember { mutableStateOf<Set<MediaItem>>(emptySet()) }
+    var showSelectionActionsMenu by remember { mutableStateOf(false) }
 
     // System Back retraces the user's actual trail (0 -> DCIM -> Download -> Back
     // returns to DCIM), not the parent chain. Registered after MainActivity's
@@ -209,6 +210,7 @@ fun FileManagerScreen(
         storageRoots.firstOrNull { it.root.absolutePath == dir.absolutePath }?.label
             ?: dir.name.ifEmpty { dir.path }
     BackHandler(enabled = navState.canGoBack) {
+        showSelectionActionsMenu = false
         isMultiSelectActive = false
         selectedItems = emptySet()
         searchQuery = ""
@@ -444,7 +446,41 @@ fun FileManagerScreen(
     ) {
         // App Bar / Selection Action Toolbar
         val useGlassmorphism by viewModel.useGlassmorphism.collectAsState()
+        fun exitSelection() {
+            showSelectionActionsMenu = false
+            isMultiSelectActive = false
+            selectedItems = emptySet()
+        }
+        fun toggleSelectAll() {
+            selectedItems = if (selectedItems.size == fileList.size) emptySet() else fileList.toSet()
+        }
+        fun copySelected() {
+            clipboardState = ClipboardState(selectedItems.toList(), ClipboardOp.COPY)
+            Toast.makeText(context, "${selectedItems.size} items copied to clipboard", Toast.LENGTH_SHORT).show()
+            exitSelection()
+        }
+        fun moveSelected() {
+            clipboardState = ClipboardState(selectedItems.toList(), ClipboardOp.MOVE)
+            Toast.makeText(context, "${selectedItems.size} items cut to clipboard", Toast.LENGTH_SHORT).show()
+            exitSelection()
+        }
+        fun compressSelected() {
+            val zipFile = File(currentDir, "Archive_${System.currentTimeMillis()}.zip")
+            val payload = selectedItems.map { it.file }
+            runFileOp("Compress") { StorageHelper.zipFiles(payload, zipFile) }
+            exitSelection()
+        }
+        fun openArchiveSelected() {
+            onOpenArchiveManager(selectedItems.map { it.file })
+            exitSelection()
+        }
+        fun openVaultSelected() {
+            exitSelection()
+            onOpenVault()
+        }
         FloatingTopBar(useGlass = useGlassmorphism) {
+            BoxWithConstraints {
+            val compactSelectionActions = maxWidth < 600.dp
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -452,10 +488,7 @@ fun FileManagerScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (isMultiSelectActive) {
-                    IconButton(onClick = {
-                        isMultiSelectActive = false
-                        selectedItems = emptySet()
-                    }) {
+                    IconButton(onClick = { exitSelection() }) {
                         Icon(AppIcons.Close, contentDescription = "Exit selection")
                     }
                 } else {
@@ -491,61 +524,90 @@ fun FileManagerScreen(
                 )
 
                 if (isMultiSelectActive) {
-                    // Select All / Deselect All Toggle Button
-                    IconButton(onClick = {
-                        selectedItems = if (selectedItems.size == fileList.size) {
-                            emptySet()
-                        } else {
-                            fileList.toSet()
+                    if (compactSelectionActions) {
+                        IconButton(onClick = { copySelected() }) {
+                            Icon(AppIcons.ContentCopy, contentDescription = "Copy selected")
                         }
-                    }) {
-                        Icon(
-                            imageVector = if (selectedItems.size == fileList.size) AppIcons.Deselect else AppIcons.SelectAll,
-                            contentDescription = "Select All Toggle"
-                        )
+                        IconButton(onClick = { moveSelected() }) {
+                            Icon(AppIcons.ContentCut, contentDescription = "Move selected")
+                        }
+                        Box {
+                            IconButton(onClick = { showSelectionActionsMenu = true }) {
+                                Icon(AppIcons.MoreVert, contentDescription = "More selection actions")
+                            }
+                            DropdownMenu(
+                                expanded = showSelectionActionsMenu,
+                                onDismissRequest = { showSelectionActionsMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(if (selectedItems.size == fileList.size) "Deselect All" else "Select All") },
+                                    onClick = {
+                                        showSelectionActionsMenu = false
+                                        toggleSelectAll()
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            if (selectedItems.size == fileList.size) AppIcons.Deselect else AppIcons.SelectAll,
+                                            contentDescription = null
+                                        )
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Compress to ZIP") },
+                                    onClick = {
+                                        showSelectionActionsMenu = false
+                                        compressSelected()
+                                    },
+                                    leadingIcon = { Icon(AppIcons.FolderZip, contentDescription = null) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Open Archive Manager") },
+                                    onClick = {
+                                        showSelectionActionsMenu = false
+                                        openArchiveSelected()
+                                    },
+                                    leadingIcon = { Icon(AppIcons.Archive, contentDescription = null) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Open Encrypted Vault") },
+                                    onClick = {
+                                        showSelectionActionsMenu = false
+                                        openVaultSelected()
+                                    },
+                                    leadingIcon = { Icon(AppIcons.Lock, contentDescription = null) }
+                                )
+                            }
+                        }
+                    } else {
+                        IconButton(onClick = { toggleSelectAll() }) {
+                            Icon(
+                                imageVector = if (selectedItems.size == fileList.size) AppIcons.Deselect else AppIcons.SelectAll,
+                                contentDescription = "Select All Toggle"
+                            )
+                        }
+                        IconButton(onClick = { copySelected() }) {
+                            Icon(AppIcons.ContentCopy, contentDescription = "Copy selected")
+                        }
+                        IconButton(onClick = { moveSelected() }) {
+                            Icon(AppIcons.ContentCut, contentDescription = "Move selected")
+                        }
+                        IconButton(onClick = { compressSelected() }) {
+                            Icon(AppIcons.FolderZip, contentDescription = "Compress to ZIP")
+                        }
+                        IconButton(onClick = { openArchiveSelected() }) {
+                            Icon(AppIcons.Archive, contentDescription = "Open Archive Manager")
+                        }
+                        IconButton(onClick = { openVaultSelected() }) {
+                            Icon(AppIcons.Lock, contentDescription = "Open Encrypted Vault")
+                        }
                     }
-                    IconButton(onClick = {
-                        clipboardState = ClipboardState(selectedItems.toList(), ClipboardOp.COPY)
-                        Toast.makeText(context, "${selectedItems.size} items copied to clipboard", Toast.LENGTH_SHORT).show()
-                        isMultiSelectActive = false
-                        selectedItems = emptySet()
-                    }) {
-                        Icon(AppIcons.ContentCopy, contentDescription = "Copy selected")
-                    }
-                    IconButton(onClick = {
-                        clipboardState = ClipboardState(selectedItems.toList(), ClipboardOp.MOVE)
-                        Toast.makeText(context, "${selectedItems.size} items cut to clipboard", Toast.LENGTH_SHORT).show()
-                        isMultiSelectActive = false
-                        selectedItems = emptySet()
-                    }) {
-                        Icon(AppIcons.ContentCut, contentDescription = "Move selected")
-                    }
-                    IconButton(onClick = {
-                        val zipFile = File(currentDir, "Archive_${System.currentTimeMillis()}.zip")
-                        val payload = selectedItems.map { it.file }
-                        runFileOp("Compress") { StorageHelper.zipFiles(payload, zipFile) }
-                        isMultiSelectActive = false
-                        selectedItems = emptySet()
-                    }) {
-                        Icon(AppIcons.FolderZip, contentDescription = "Compress to ZIP")
-                    }
-                    IconButton(onClick = {
-                        onOpenArchiveManager(selectedItems.map { it.file })
-                        isMultiSelectActive = false
-                        selectedItems = emptySet()
-                    }) {
-                        Icon(AppIcons.Archive, contentDescription = "Open Archive Manager")
-                    }
-                    IconButton(onClick = {
-                        isMultiSelectActive = false
-                        selectedItems = emptySet()
-                        onOpenVault()
-                    }) {
-                        Icon(AppIcons.Lock, contentDescription = "Open Encrypted Vault")
-                    }
-                    IconButton(onClick = {
-                        showDeleteConfirmDialog = true
-                    }) {
+                    IconButton(
+                        onClick = {
+                            showSelectionActionsMenu = false
+                            showDeleteConfirmDialog = true
+                        },
+                        enabled = selectedItems.isNotEmpty()
+                    ) {
                         Icon(AppIcons.Delete, contentDescription = "Delete selected", tint = MaterialTheme.colorScheme.error)
                     }
                 } else {
@@ -718,6 +780,7 @@ fun FileManagerScreen(
                     }
                 }
             }
+        }
         }
 
         Box(
