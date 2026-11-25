@@ -24,6 +24,8 @@ data class AppItem(
 /** The former "Apps" hub contents (also used by the launcher Home grid). */
 val APPS: List<AppItem> = listOf(
     AppItem("files", "File Manager", AppIcons.Folder, "Manage local files", "storage,sdcard,folder", "Apps"),
+    AppItem("texteditor", "Text Editor", AppIcons.EditNote, "Edit notes and code files", "text,code,editor,markdown,json", "Apps"),
+    AppItem("archivemanager", "Archive Manager", AppIcons.Archive, "Extract and create archives", "zip,tar,gzip,compress,extract", "Apps"),
     AppItem("web", "Web Browser", AppIcons.Language, "Surf the web", "browser,internet", "Apps"),
     AppItem("camera", "Camera", AppIcons.PhotoCamera, "Photos & videos", "photo,picture,shoot", "Apps"),
     AppItem("audio", "Audio Player", AppIcons.MusicNote, "Listen to music", "music,songs,player", "Apps"),

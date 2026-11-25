@@ -8,7 +8,7 @@ call history, in-app call UI), the productivity and media tools (file management
 browsing, media players, Samba network access, Wi‑Fi file transfer), and the reading apps
 and utilities (Bible, Nyimbo, Flashlight, Sound Recorder, Internet Radio, Calculator,
 BT Mouse & Keyboard, Wi‑Fi Transfer, Samba, Text Extract, APK Backup,
-Phone Info, Calendar, Scan to PDF).
+Phone Info, Calendar, Scan to PDF, Text Editor, Archive Manager).
 
 **Calendar & Scan to PDF:** the Calendar manages events and appointments (event CRUD includes add/edit/delete). Scan to PDF accepts added photos only and converts them locally into a shareable PDF.
 
@@ -163,7 +163,15 @@ under **Comms / Apps / Tools / Web apps / System** section headers.
   **Sort** — the tool launchers (Samba,
   Wi-Fi Transfer, Phone Info, APK Backup, Text Extract) moved out of the
   ⋮ menu onto the dedicated **Tools** tab — and any **image file's three-dot menu**
-  has an **"Extract Text"** action (on-device OCR)
+  has an **"Extract Text"** action (on-device OCR). A text/code file's three-dot menu offers
+  **"Open in Text Editor"**, and archives offer **"Open in Archive Manager"**; both return to
+  the File Manager on Back, and the multi-select toolbar also has an **Archive Manager** action
+- **Text Editor** — edit text/code files from its Home-grid tile or from the File Manager, with
+  Save / Save As / New, dirty-state prompts, word wrap and a monospace font-size control. Close
+  it with the system back gesture; its top bar follows the glass style when enabled
+- **Archive Manager** — extract ZIP/TAR archives or create ZIP archives from selected files, with
+  a dedicated Home-grid tile and File Manager handoff. RAR/7z are recognized but cannot be
+  extracted natively. It also closes with the back gesture and follows the glass top-bar style
 - **Vault** — its own Home-grid tile opens the PIN-protected encrypted vault without going
   through the File Manager; it has no on-screen Back button.
 - **External SD card support** — the **⋮ → "Storage locations"** dialog lists every

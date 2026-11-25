@@ -402,6 +402,8 @@ fun MainAppContent(viewModel: MainViewModel) {
     // OCR "Take Photo" routes through the in-app camera, then returns here.
     var ocrCaptureRequested by remember { mutableStateOf(false) }
     var ocrPendingFile by remember { mutableStateOf<java.io.File?>(null) }
+    var textEditorPendingFile by remember { mutableStateOf<java.io.File?>(null) }
+    var archivePendingFiles by remember { mutableStateOf<List<java.io.File>>(emptyList()) }
     var scanPdfCaptureRequested by remember { mutableStateOf(false) }
 
     // Route share-sheet taps / web-app long-press downloads into the downloader.
@@ -838,6 +840,16 @@ fun MainAppContent(viewModel: MainViewModel) {
                             toolReturnToFiles = true
                             immersiveAppId = "ocr"
                         },
+                        onOpenTextEditor = { file ->
+                            textEditorPendingFile = file
+                            toolReturnToFiles = true
+                            immersiveAppId = "texteditor"
+                        },
+                        onOpenArchiveManager = { files ->
+                            archivePendingFiles = files
+                            toolReturnToFiles = true
+                            immersiveAppId = "archivemanager"
+                        },
                         onExit = { immersiveAppId = null }
                     )
                     "web" -> GeckoBrowserScreen(
@@ -951,6 +963,24 @@ fun MainAppContent(viewModel: MainViewModel) {
                             editorImageFile = null
                             editorImageUri = null
                             editorImageName = null
+                            closeImmersive()
+                        }
+                    )
+                    "texteditor" -> com.example.ui.screens.texteditor.TextEditorScreen(
+                        viewModel = viewModel,
+                        pendingFile = textEditorPendingFile,
+                        onPendingConsumed = { textEditorPendingFile = null },
+                        onClose = {
+                            textEditorPendingFile = null
+                            closeImmersive()
+                        }
+                    )
+                    "archivemanager" -> com.example.ui.screens.archivemanager.ArchiveManagerScreen(
+                        viewModel = viewModel,
+                        pendingFiles = archivePendingFiles,
+                        onPendingConsumed = { archivePendingFiles = emptyList() },
+                        onClose = {
+                            archivePendingFiles = emptyList()
                             closeImmersive()
                         }
                     )

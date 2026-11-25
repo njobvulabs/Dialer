@@ -81,6 +81,19 @@ import java.util.*
 enum class ViewMode { LIST, GRID, COMPACT }
 enum class ClipboardOp { COPY, MOVE }
 
+private val TEXT_EDITOR_EXTENSIONS = setOf(
+    "txt", "text", "md", "markdown", "json", "xml", "yaml", "yml", "ini", "cfg", "conf",
+    "properties", "log", "csv", "html", "htm", "css", "js", "jsx", "ts", "tsx", "kt", "kts",
+    "java", "py", "rb", "php", "c", "h", "cpp", "hpp", "cs", "go", "rs", "sh", "bat", "sql"
+)
+private val ARCHIVE_MANAGER_EXTENSIONS = setOf("zip", "tar", "gz", "tgz", "tbz", "rar", "7z")
+
+private fun isTextEditorFile(item: MediaItem): Boolean =
+    !item.isDirectory && (item.mimeType.startsWith("text/") || item.file.extension.lowercase() in TEXT_EDITOR_EXTENSIONS)
+
+private fun isArchiveManagerFile(item: MediaItem): Boolean =
+    !item.isDirectory && item.file.extension.lowercase() in ARCHIVE_MANAGER_EXTENSIONS
+
 // FileObserver is deprecated in favour of the StorageManager APIs, but those need
 // per-file change events to be polled anyway, and a single inotify watch is far
 // cheaper than the 2 s directory re-list this replaced.
@@ -125,6 +138,8 @@ fun FileManagerScreen(
     onOpenMedia: (File, String) -> Unit,
     onOpenVault: () -> Unit = {},
     onExtractText: (File) -> Unit = {},
+    onOpenTextEditor: (File) -> Unit = {},
+    onOpenArchiveManager: (List<File>) -> Unit = {},
     onExit: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -513,6 +528,13 @@ fun FileManagerScreen(
                         selectedItems = emptySet()
                     }) {
                         Icon(AppIcons.FolderZip, contentDescription = "Compress to ZIP")
+                    }
+                    IconButton(onClick = {
+                        onOpenArchiveManager(selectedItems.map { it.file })
+                        isMultiSelectActive = false
+                        selectedItems = emptySet()
+                    }) {
+                        Icon(AppIcons.Archive, contentDescription = "Open Archive Manager")
                     }
                     IconButton(onClick = {
                         isMultiSelectActive = false
@@ -1272,6 +1294,18 @@ fun FileManagerScreen(
                 onExtractText(item.file)
                 selectedFileForAction = null
             },
+            onOpenTextEditor = if (isTextEditorFile(item)) {
+                {
+                    onOpenTextEditor(item.file)
+                    selectedFileForAction = null
+                }
+            } else null,
+            onOpenArchiveManager = if (isArchiveManagerFile(item)) {
+                {
+                    onOpenArchiveManager(listOf(item.file))
+                    selectedFileForAction = null
+                }
+            } else null,
             runOp = ::runFileOp
         )
     }
@@ -1505,6 +1539,8 @@ fun FileActionsDialog(
     onRename: (String) -> Unit,
     onDelete: () -> Unit,
     onExtractText: (() -> Unit)? = null,
+    onOpenTextEditor: (() -> Unit)? = null,
+    onOpenArchiveManager: (() -> Unit)? = null,
     // Delegates a mutating operation to the screen's IO runner so archive
     // work never happens on the main thread just because it was started here.
     runOp: (label: String, block: () -> Boolean) -> Unit = { _, b -> b() }
@@ -1646,6 +1682,34 @@ fun FileActionsDialog(
                         Icon(AppIcons.ContentCut, contentDescription = null)
                         Spacer(modifier = Modifier.width(12.dp))
                         Text("Move / Cut", modifier = Modifier.weight(1f))
+                    }
+
+                    if (onOpenTextEditor != null) {
+                        TextButton(
+                            onClick = {
+                                onOpenTextEditor()
+                                onDismiss()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(AppIcons.EditNote, contentDescription = null)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("Open in Text Editor", modifier = Modifier.weight(1f))
+                        }
+                    }
+
+                    if (onOpenArchiveManager != null) {
+                        TextButton(
+                            onClick = {
+                                onOpenArchiveManager()
+                                onDismiss()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(AppIcons.Archive, contentDescription = null)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("Open in Archive Manager", modifier = Modifier.weight(1f))
+                        }
                     }
 
                     // ZIP / Archive Operations
