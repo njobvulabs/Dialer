@@ -979,6 +979,11 @@ fun MainAppContent(viewModel: MainViewModel) {
                         viewModel = viewModel,
                         pendingFiles = archivePendingFiles,
                         onPendingConsumed = { archivePendingFiles = emptyList() },
+                        onOpenFiles = {
+                            archivePendingFiles = emptyList()
+                            immersiveReturnId = "archivemanager"
+                            immersiveAppId = "files"
+                        },
                         onClose = {
                             archivePendingFiles = emptyList()
                             closeImmersive()

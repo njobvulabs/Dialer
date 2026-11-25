@@ -636,7 +636,7 @@ object StorageHelper {
      * anywhere the user can. Containment is checked on the *canonical* path, which
      * also collapses a symlinked parent that would otherwise point outside.
      */
-    private fun resolveArchiveEntry(destDir: File, entryName: String): File? {
+    fun resolveArchiveEntry(destDir: File, entryName: String): File? {
         if (entryName.isEmpty() || entryName.contains('\u0000')) return null
         val root = runCatching { destDir.canonicalFile }.getOrElse { return null }
         val candidate = File(root, entryName)

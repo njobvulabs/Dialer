@@ -1,7 +1,6 @@
 package com.example.ui.screens.media
 
 import android.content.Context
-import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
@@ -41,7 +40,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.FileProvider
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -440,38 +438,6 @@ fun ImageViewerScreen(
                         }
                         IconButton(onClick = { showDetailsDialog = true }) {
                             Icon(AppIcons.Info, contentDescription = "Details", tint = Color.White)
-                        }
-                        IconButton(onClick = {
-                            if (isGallerySource) {
-                                runCatching {
-                                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                        type = context.contentResolver.getType(imageUri!!) ?: "image/*"
-                                        putExtra(Intent.EXTRA_STREAM, imageUri)
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    }
-                                    context.startActivity(Intent.createChooser(shareIntent, "Share Image"))
-                                }.onFailure {
-                                    Toast.makeText(context, "Unable to share image", Toast.LENGTH_SHORT).show()
-                                }
-                            } else {
-                                try {
-                                    val uri: Uri = FileProvider.getUriForFile(
-                                        context,
-                                        "${context.packageName}.fileprovider",
-                                        currentFile
-                                    )
-                                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                        type = "image/*"
-                                        putExtra(Intent.EXTRA_STREAM, uri)
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    }
-                                    context.startActivity(Intent.createChooser(shareIntent, "Share Image"))
-                                } catch (e: Exception) {
-                                    Toast.makeText(context, "File path: ${currentFile.absolutePath}", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        }) {
-                            Icon(AppIcons.Share, contentDescription = "Share", tint = Color.White)
                         }
                         if (!isGallerySource || onDeleteImage != null) {
                             IconButton(

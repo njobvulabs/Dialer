@@ -165,13 +165,19 @@ under **Comms / Apps / Tools / Web apps / System** section headers.
   ⋮ menu onto the dedicated **Tools** tab — and any **image file's three-dot menu**
   has an **"Extract Text"** action (on-device OCR). A text/code file's three-dot menu offers
   **"Open in Text Editor"**, and archives offer **"Open in Archive Manager"**; both return to
-  the File Manager on Back, and the multi-select toolbar also has an **Archive Manager** action
+  the File Manager on Back, and the multi-select toolbar also has an **Archive Manager** action.
 - **Text Editor** — edit text/code files from its Home-grid tile or from the File Manager, with
-  Save / Save As / New, dirty-state prompts, word wrap and a monospace font-size control. Close
-  it with the system back gesture; its top bar follows the glass style when enabled
-- **Archive Manager** — extract ZIP/TAR archives or create ZIP archives from selected files, with
-  a dedicated Home-grid tile and File Manager handoff. RAR/7z are recognized but cannot be
-  extracted natively. It also closes with the back gesture and follows the glass top-bar style
+  multiple tabs, recent files and draft recovery, encoding/BOM/newline preservation, line numbers,
+   find/replace, go-to-line, auto-indent, syntax highlighting, word wrap, font-size and tab-size
+   controls (the control row scrolls so −/+ stay reachable in portrait), Share/Rename/Delete, and
+   Save / Save As / New with dirty-state prompts. Close it with
+  the system back gesture; its top bar follows the glass style when enabled.
+- **Archive Manager** — extract ZIP/TAR/GZ/TGZ/TBZ/7z archives (including password-protected ZIP/7z)
+  or create ZIP/7z archives from selected files, with optional 7z passwords, compression levels,
+   collision handling, progress/cancel and split-ZIP staging. It has a dedicated Home-grid tile and
+   File Manager handoff; RAR is recognized but unsupported by the bundled archive library. The top bar
+   has no Share button; its File Manager action returns to Archive Manager on Back. It also closes
+   with the back gesture and follows the glass top-bar style.
 - **Vault** — its own Home-grid tile opens the PIN-protected encrypted vault without going
   through the File Manager; it has no on-screen Back button.
 - **External SD card support** — the **⋮ → "Storage locations"** dialog lists every
