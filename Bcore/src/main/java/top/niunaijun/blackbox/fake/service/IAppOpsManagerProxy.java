@@ -4,6 +4,7 @@ import android.app.AppOpsManager;
 import android.content.Context;
 import android.os.IBinder;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 
 import black.android.app.BRAppOpsManager;
@@ -44,36 +45,119 @@ public class IAppOpsManagerProxy extends BinderInvocationStub {
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
         String methodName = method.getName();
-        
-        
-        
-        if (methodName.startsWith("check") || 
-            methodName.startsWith("note") || 
-            methodName.startsWith("start")) {
+        Class<?> returnType = method.getReturnType();
+
+        if (isIntReturn(returnType) &&
+            (methodName.startsWith("check") ||
+             methodName.startsWith("note") ||
+             methodName.startsWith("start"))) {
             Slog.d(TAG, "AppOps invoke: Bypassing system for " + methodName + ", allowing operation");
             return AppOpsManager.MODE_ALLOWED;
         }
-        
-        
+
+        if (isSyncNotedAppOpReturn(returnType)) {
+            return invokeSyncNotedAppOp(method, args);
+        }
+
         if (methodName.startsWith("finish")) {
             Slog.d(TAG, "AppOps invoke: Bypassing system for " + methodName);
             return null;
         }
-        
-        
+
         try {
             MethodParameterUtils.replaceFirstAppPkg(args);
             MethodParameterUtils.replaceLastUid(args);
             return super.invoke(proxy, method, args);
         } catch (SecurityException e) {
-            
             Slog.w(TAG, "AppOps invoke: SecurityException caught for " + methodName + ", allowing operation", e);
-            return AppOpsManager.MODE_ALLOWED;
-        } catch (Exception e) {
+            return defaultValue(returnType);
+        } catch (Throwable e) {
             Slog.e(TAG, "AppOps invoke: Error in method " + methodName, e);
-            
+            return defaultValue(returnType);
+        }
+    }
+
+    private static boolean isIntReturn(Class<?> returnType) {
+        return returnType == int.class || returnType == Integer.class;
+    }
+
+    private static boolean isSyncNotedAppOpReturn(Class<?> returnType) {
+        return returnType != null && "android.app.SyncNotedAppOp".equals(returnType.getName());
+    }
+
+    private Object invokeSyncNotedAppOp(Method method, Object[] args) {
+        try {
+            MethodParameterUtils.replaceFirstAppPkg(args);
+            MethodParameterUtils.replaceLastUid(args);
+            Object result = method.invoke(getBase(), args);
+            if (method.getReturnType().isInstance(result)) {
+                return result;
+            }
+        } catch (Throwable e) {
+            Slog.w(TAG, "AppOps invoke: SyncNotedAppOp delegation failed for " + method.getName(), e);
+        }
+        return allowedSyncNotedAppOp(args);
+    }
+
+    private static Object allowedSyncNotedAppOp(Object[] args) {
+        try {
+            Class<?> clazz = Class.forName("android.app.SyncNotedAppOp");
+            int opCode = 0;
+            String attributionTag = null;
+            int stringIndex = 0;
+            if (args != null) {
+                for (Object arg : args) {
+                    if (arg instanceof Integer && opCode == 0) {
+                        opCode = (Integer) arg;
+                    }
+                    if (arg instanceof String) {
+                        stringIndex++;
+                        if (stringIndex >= 2) {
+                            attributionTag = (String) arg;
+                            break;
+                        }
+                    }
+                }
+            }
+            try {
+                Constructor<?> constructor = clazz.getDeclaredConstructor(int.class, int.class, String.class, String.class);
+                constructor.setAccessible(true);
+                return constructor.newInstance(AppOpsManager.MODE_ALLOWED, opCode, attributionTag, BlackBoxCore.getHostPkg());
+            } catch (Throwable ignored) {
+                return clazz.getConstructor(int.class, String.class).newInstance(opCode, attributionTag);
+            }
+        } catch (Throwable e) {
+            Slog.e(TAG, "AppOps invoke: Unable to create SyncNotedAppOp", e);
+            return null;
+        }
+    }
+
+    private static Object defaultValue(Class<?> returnType) {
+        if (isIntReturn(returnType)) {
             return AppOpsManager.MODE_ALLOWED;
         }
+        if (returnType == boolean.class || returnType == Boolean.class) {
+            return false;
+        }
+        if (returnType == long.class || returnType == Long.class) {
+            return 0L;
+        }
+        if (returnType == float.class || returnType == Float.class) {
+            return 0f;
+        }
+        if (returnType == double.class || returnType == Double.class) {
+            return 0d;
+        }
+        if (returnType == short.class || returnType == Short.class) {
+            return (short) 0;
+        }
+        if (returnType == byte.class || returnType == Byte.class) {
+            return (byte) 0;
+        }
+        if (returnType == char.class || returnType == Character.class) {
+            return (char) 0;
+        }
+        return null;
     }
 
     @Override

@@ -43,8 +43,6 @@ import com.example.ui.components.FloatingTopBar
 import com.example.ui.components.AppSearchField
 import com.example.ui.theme.AppCornerRadius
 import com.example.ui.MainViewModel
-import com.example.util.InternalAudioCapture
-import com.example.util.InternalAudioRecordController
 import kotlinx.coroutines.delay
 import java.io.File
 import java.text.SimpleDateFormat
@@ -126,10 +124,7 @@ fun RecorderScreen(viewModel: MainViewModel) {
 
     var recordings by remember { mutableStateOf(RecorderStore.list(context)) }
     val useGlassmorphism by viewModel.useGlassmorphism.collectAsState()
-    val internalState by InternalAudioRecordController.state.collectAsState()
-    var useSystemAudio by remember { mutableStateOf(false) }
-    val systemRecording = internalState.isStarting || internalState.isRecording
-    val recordingActive = isRecording || systemRecording
+    val recordingActive = isRecording
 
     val hasRecordPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
         PackageManager.PERMISSION_GRANTED
@@ -172,14 +167,6 @@ fun RecorderScreen(viewModel: MainViewModel) {
     fun startRecording() {
         if (recordingActive) return
         triggerHaptic()
-        if (useSystemAudio) {
-            if (!InternalAudioCapture.supported()) {
-                toast("System audio capture needs Android 10 or newer")
-                return
-            }
-            InternalAudioRecordController.begin(context)
-            return
-        }
         val file = RecorderStore.newFile(context, "REC")
         try {
             val rec = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -222,10 +209,6 @@ fun RecorderScreen(viewModel: MainViewModel) {
     }
 
     fun stopRecording() {
-        if (systemRecording) {
-            InternalAudioRecordController.stop(context)
-            return
-        }
         if (!isRecording) return
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
         runCatching { recorder?.stop() }
@@ -333,12 +316,6 @@ fun RecorderScreen(viewModel: MainViewModel) {
         }
     }
 
-    LaunchedEffect(internalState.isRecording, internalState.outputPath) {
-        if (!internalState.isRecording && internalState.outputPath != null) {
-            recordings = RecorderStore.list(context)
-        }
-    }
-
     // Recording timer & Live Audio Visualizer Amplitude
     LaunchedEffect(isRecording, isPaused) {
         if (isRecording && !isPaused) {
@@ -362,12 +339,8 @@ fun RecorderScreen(viewModel: MainViewModel) {
         }
     }
 
-    val currentSystemRecording = rememberUpdatedState(systemRecording)
     DisposableEffect(Unit) {
         onDispose {
-            if (currentSystemRecording.value) {
-                InternalAudioRecordController.stop(context)
-            }
             if (isRecording) {
                 runCatching { recorder?.stop() }
             }
@@ -442,8 +415,6 @@ fun RecorderScreen(viewModel: MainViewModel) {
             ) {
                 Text(
                     text = when {
-                        internalState.isStarting -> "Preparing system audio…"
-                        systemRecording -> "Recording system audio"
                         isRecording && isPaused -> "Paused"
                         isRecording -> "Recording..."
                         else -> "Ready to Record"
@@ -458,9 +429,7 @@ fun RecorderScreen(viewModel: MainViewModel) {
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = if (recordingActive) {
-                        fmtClock(if (systemRecording) internalState.elapsedMs else recordMillis)
-                    } else "00:00",
+                    text = if (recordingActive) fmtClock(recordMillis) else "00:00",
                     style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -486,9 +455,7 @@ fun RecorderScreen(viewModel: MainViewModel) {
                     }
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = if (systemRecording) {
-                            internalState.outputPath?.let { File(it).name } ?: ""
-                        } else recordingName,
+                        text = recordingName,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -496,26 +463,6 @@ fun RecorderScreen(viewModel: MainViewModel) {
                     )
                 }
             }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            FilterChip(
-                selected = !useSystemAudio,
-                onClick = { if (!recordingActive) useSystemAudio = false },
-                enabled = !recordingActive,
-                label = { Text("Mic") },
-                leadingIcon = { Icon(AppIcons.Mic, contentDescription = null, modifier = Modifier.size(16.dp)) }
-            )
-            FilterChip(
-                selected = useSystemAudio,
-                onClick = { if (!recordingActive) useSystemAudio = true },
-                enabled = !recordingActive && InternalAudioCapture.supported(),
-                label = { Text("System playback") },
-                leadingIcon = { Icon(AppIcons.VolumeUp, contentDescription = null, modifier = Modifier.size(16.dp)) }
-            )
         }
 
         // --- Controls ---
@@ -553,13 +500,7 @@ fun RecorderScreen(viewModel: MainViewModel) {
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        if (recordingActive) {
-                            AppIcons.Stop
-                        } else if (useSystemAudio) {
-                            AppIcons.VolumeUp
-                        } else {
-                            AppIcons.Mic
-                        },
+                        if (recordingActive) AppIcons.Stop else AppIcons.Mic,
                         contentDescription = if (recordingActive) "Stop" else "Record",
                         modifier = Modifier.size(34.dp)
                     )
@@ -580,15 +521,6 @@ fun RecorderScreen(viewModel: MainViewModel) {
                     }
                 }
             }
-        }
-
-        internalState.error?.let { error ->
-            Text(
-                error,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
         }
 
         Spacer(modifier = Modifier.height(12.dp))

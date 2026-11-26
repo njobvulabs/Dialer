@@ -84,7 +84,9 @@ fun VideoTabScreen(
     val currentDir by viewModel.currentDirectory.collectAsState()
     val mediaIndex by viewModel.mediaIndex.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
-    LaunchedEffect(Unit) { viewModel.ensureMediaIndexFresh() }
+    LaunchedEffect(Unit) {
+        viewModel.ensureMediaIndexFresh()
+    }
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) viewModel.ensureMediaIndexFresh()
