@@ -65,17 +65,22 @@ fun J2meScreen(viewModel: MainViewModel) {
         apps = reload()
     }
 
-    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
         busy = true
         scope.launch {
-            val imported = withContext(Dispatchers.IO) {
-                runCatching { J2meRomStore.import(context, uri) }.getOrNull()
+            val result = withContext(Dispatchers.IO) {
+                runCatching { J2meRomStore.import(context, uris) }
             }
             apps = reload()
             busy = false
+            val imported = result.getOrNull()
             if (imported == null) {
-                Toast.makeText(context, "Import failed. Use a J2ME .jar, .jad or .kjx file.", Toast.LENGTH_SHORT).show()
+                val error = result.exceptionOrNull()
+                val detail = error?.message?.takeIf { it.isNotBlank() }
+                    ?: error?.javaClass?.simpleName
+                    ?: "Use a J2ME .jar, .kjx, or a .jad with its .jar."
+                Toast.makeText(context, "Import failed: $detail", Toast.LENGTH_LONG).show()
             } else {
                 Toast.makeText(context, "Added ${imported.name}", Toast.LENGTH_SHORT).show()
             }
@@ -116,7 +121,7 @@ fun J2meScreen(viewModel: MainViewModel) {
                     Column(Modifier.padding(14.dp)) {
                         Text("Import Java ME games", style = MaterialTheme.typography.bodyMedium)
                         Text(
-                            "Supports .jar, .jad with its .jar beside it, and .kjx bundles. No games are bundled.",
+                            "Supports .jar, .kjx, and .jad bundles. Select a .jad and its .jar together. No games are bundled.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                         )

@@ -641,6 +641,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         refreshLauncherNotifications()
     }
 
+    fun actionLauncherNotification(key: String, index: Int, input: String?): Boolean {
+        val sent = SmsNotificationListener.performAction(key, index, input)
+        if (sent) refreshLauncherNotifications()
+        return sent
+    }
+
     init {
         ensureSmsObserver()
         refreshSmsUnread()

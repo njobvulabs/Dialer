@@ -1,13 +1,17 @@
 package com.example.service
 
+import android.app.ActivityOptions
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.RemoteInput
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationCompat
@@ -41,10 +45,9 @@ class SmsNotificationListener : NotificationListenerService() {
             "com.android.messaging"
         )
 
-        // package -> notification keys (badge counts; excludes ongoing/summaries/self).
         private val activeKeys = ConcurrentHashMap<String, MutableSet<String>>()
-        // key -> snapshot for the in-app shade (excludes summaries/self).
         private val activeSnapshots = ConcurrentHashMap<String, LauncherNotification>()
+        private val activeSbns = ConcurrentHashMap<String, StatusBarNotification>()
 
         @Volatile
         private var instance: SmsNotificationListener? = null
@@ -60,6 +63,46 @@ class SmsNotificationListener : NotificationListenerService() {
         /** Best-effort dismiss of a clearable notification from the in-app shade. */
         fun dismiss(key: String) {
             runCatching { instance?.cancelNotification(key) }
+        }
+
+        fun performAction(key: String, index: Int, input: String?): Boolean {
+            val notif = activeSbns[key]?.notification ?: return false
+            val action = notif.actions?.getOrNull(index) ?: return false
+            val pendingIntent = action.actionIntent ?: return false
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && action.isAuthenticationRequired) return false
+            val context = instance?.applicationContext ?: return false
+            val fillIn = Intent()
+            val remoteInputs = action.remoteInputs
+            if (!remoteInputs.isNullOrEmpty()) {
+                val results = Bundle()
+                for (remoteInput in remoteInputs) {
+                    val resultKey = remoteInput.resultKey ?: continue
+                    val text = input ?: ""
+                    if (!remoteInput.allowFreeFormInput && !remoteInput.choices.isNullOrEmpty()) {
+                        val match = remoteInput.choices.firstOrNull { it?.toString() == text } ?: continue
+                        results.putCharSequence(resultKey, match)
+                    } else if (remoteInput.allowFreeFormInput) {
+                        results.putCharSequence(resultKey, text)
+                    }
+                }
+                RemoteInput.addResultsToIntent(remoteInputs, fillIn, results)
+            }
+            val options = ActivityOptions.makeBasic()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                options.setPendingIntentBackgroundActivityLaunchAllowed(true)
+            }
+            return runCatching {
+                pendingIntent.send(
+                    context,
+                    0,
+                    fillIn,
+                    null,
+                    Handler(Looper.getMainLooper()),
+                    null,
+                    options.toBundle()
+                )
+                true
+            }.getOrDefault(false)
         }
 
         fun ensureChannel(context: Context) {
@@ -83,6 +126,7 @@ class SmsNotificationListener : NotificationListenerService() {
         instance = this
         activeKeys.clear()
         activeSnapshots.clear()
+        activeSbns.clear()
         runCatching {
             activeNotifications?.forEach { track(it, broadcast = false) }
         }
@@ -93,6 +137,7 @@ class SmsNotificationListener : NotificationListenerService() {
         super.onListenerDisconnected()
         activeKeys.clear()
         activeSnapshots.clear()
+        activeSbns.clear()
         if (instance === this) instance = null
         broadcastCounts()
     }
@@ -100,6 +145,7 @@ class SmsNotificationListener : NotificationListenerService() {
     override fun onDestroy() {
         activeKeys.clear()
         activeSnapshots.clear()
+        activeSbns.clear()
         if (instance === this) instance = null
         broadcastCounts()
         super.onDestroy()
@@ -147,10 +193,10 @@ class SmsNotificationListener : NotificationListenerService() {
         val pkg = sbn.packageName ?: return
         val key = sbn.key ?: return
         if (pkg == packageName) return
-        if (sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
+        val isGroupSummary = sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY != 0
 
         var changed = false
-        if (!sbn.isOngoing) {
+        if (!sbn.isOngoing && !isGroupSummary) {
             val set = activeKeys.computeIfAbsent(pkg) {
                 Collections.synchronizedSet(mutableSetOf())
             }
@@ -159,7 +205,8 @@ class SmsNotificationListener : NotificationListenerService() {
 
         val snapshot = buildSnapshot(sbn)
         val prev = activeSnapshots.put(key, snapshot)
-        if (prev != snapshot) changed = true
+        val prevSbn = activeSbns.put(key, sbn)
+        if (prev != snapshot || prevSbn !== sbn) changed = true
 
         if (changed && broadcast) broadcastCounts()
     }
@@ -168,6 +215,7 @@ class SmsNotificationListener : NotificationListenerService() {
         val pkg = sbn.packageName ?: return
         val key = sbn.key ?: return
         var changed = activeSnapshots.remove(key) != null
+        changed = activeSbns.remove(key) != null || changed
         val set = activeKeys[pkg]
         if (set != null) {
             val removed = synchronized(set) { set.remove(key) }
@@ -178,18 +226,34 @@ class SmsNotificationListener : NotificationListenerService() {
     }
 
     private fun buildSnapshot(sbn: StatusBarNotification): LauncherNotification {
+        val notif = sbn.notification
+        val groupKey = sbn.groupKey
         val pkg = sbn.packageName.orEmpty()
-        val extras = sbn.notification?.extras
+        val extras = notif?.extras
         val title = extras?.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString()
             ?: extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString()
             ?: extras?.getString("android.title").orEmpty()
-        val text = extras?.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString()
-            ?: extras?.getCharSequence(NotificationCompat.EXTRA_BIG_TEXT)?.toString()
+        val text = extras?.getCharSequence(NotificationCompat.EXTRA_BIG_TEXT)?.toString()
+            ?: extras?.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString()
             ?: extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString()
             ?: extras?.getString("android.text").orEmpty()
+        val lines = extras?.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)
+            ?.map { it?.toString().orEmpty() }
+            ?.filter { it.isNotBlank() }
+            ?: emptyList()
         val sub = extras?.getCharSequence(NotificationCompat.EXTRA_SUB_TEXT)?.toString().orEmpty()
+        val summary = extras?.getCharSequence(Notification.EXTRA_SUMMARY_TEXT)?.toString().orEmpty()
+        val info = extras?.getCharSequence(Notification.EXTRA_INFO_TEXT)?.toString().orEmpty()
+        val conversation = extras?.getCharSequence(NotificationCompat.EXTRA_CONVERSATION_TITLE)?.toString().orEmpty()
+        val fullText = when {
+            text.isNotBlank() -> text
+            lines.isNotEmpty() -> lines.joinToString("\n")
+            sub.isNotBlank() -> sub
+            else -> ""
+        }
         val displayText = when {
             text.isNotBlank() -> text
+            lines.isNotEmpty() -> lines.first()
             sub.isNotBlank() -> sub
             else -> ""
         }
@@ -198,7 +262,22 @@ class SmsNotificationListener : NotificationListenerService() {
             val ai = pm.getApplicationInfo(pkg, 0)
             pm.getApplicationLabel(ai)?.toString().orEmpty().ifBlank { pkg }
         }.getOrDefault(pkg)
-        val clearable = sbn.isClearable && !sbn.isOngoing
+        val actions = (notif?.actions ?: emptyArray()).map { action ->
+            LauncherNotificationAction(
+                title = action.title?.toString().orEmpty(),
+                pendingIntent = action.actionIntent,
+                remoteInputs = (action.remoteInputs ?: emptyArray()).map { input ->
+                    LauncherRemoteInput(
+                        resultKey = input.resultKey.orEmpty(),
+                        label = input.label?.toString().orEmpty(),
+                        allowFreeFormInput = input.allowFreeFormInput,
+                        choices = (input.choices ?: emptyArray()).map { choice -> choice?.toString().orEmpty() }
+                    )
+                },
+                isAuthenticationRequired = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+                    action.isAuthenticationRequired
+            )
+        }
         return LauncherNotification(
             key = sbn.key.orEmpty(),
             packageName = pkg,
@@ -206,8 +285,23 @@ class SmsNotificationListener : NotificationListenerService() {
             title = title,
             text = displayText,
             postTime = sbn.postTime,
-            isClearable = clearable,
-            contentIntent = sbn.notification?.contentIntent
+            isClearable = sbn.isClearable && !sbn.isOngoing,
+            contentIntent = notif?.contentIntent,
+            fullTitle = title,
+            fullText = fullText,
+            textLines = lines,
+            subText = sub,
+            summaryText = summary,
+            infoText = info,
+            conversationTitle = conversation,
+            actions = actions,
+            groupKey = groupKey?.takeIf { it.isNotBlank() },
+            isGroup = !groupKey.isNullOrBlank(),
+            isGroupSummary = notif?.flags?.and(Notification.FLAG_GROUP_SUMMARY) != 0,
+            isOngoing = sbn.isOngoing,
+            channelId = notif?.channelId.orEmpty(),
+            category = notif?.category.orEmpty(),
+            deleteIntent = notif?.deleteIntent
         )
     }
 

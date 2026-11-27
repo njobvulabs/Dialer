@@ -119,6 +119,7 @@ fun PpssppScreen(viewModel: MainViewModel, onGameplayChanged: (Boolean) -> Unit)
     var showAnalog by remember { mutableStateOf(PpssppPrefs.showAnalog(context)) }
     var autoSave by remember { mutableStateOf(PpssppPrefs.autoSave(context)) }
     var orientationPref by remember { mutableStateOf(PpssppPrefs.orientation(context)) }
+    var preset by remember { mutableStateOf(PpssppPrefs.preset(context)) }
     var cpuCore by remember { mutableStateOf(PpssppPrefs.cpuCore(context)) }
     var resolution by remember { mutableStateOf(PpssppPrefs.resolution(context)) }
     var controlAlpha by remember { mutableStateOf(PpssppPrefs.controlAlpha(context)) }
@@ -301,20 +302,16 @@ fun PpssppScreen(viewModel: MainViewModel, onGameplayChanged: (Boolean) -> Unit)
                 PpssppRetroNative.setAnalog(0, 0)
             }
             val dirs = PpssppRomStore.dirs(context)
+            val runtimeOptions = PpssppPrefs.runtimeOptions(context)
             runCatching {
                 PpssppRetroNative.setPaths(
                     dirs.system.absolutePath,
                     dirs.saves.absolutePath,
                     dirs.roms.absolutePath
                 )
-                PpssppRetroNative.setOption("ppsspp_backend", "none")
-                PpssppRetroNative.setOption("ppsspp_cpu_core", cpuCore)
-                PpssppRetroNative.setOption("ppsspp_internal_resolution", resolution)
-                PpssppRetroNative.setOption("ppsspp_frameskip", "disabled")
-                PpssppRetroNative.setOption("ppsspp_auto_frameskip", "disabled")
-                PpssppRetroNative.setOption("ppsspp_button_preference", "Cross")
-                PpssppRetroNative.setOption("ppsspp_analog_is_circular", "enabled")
-                PpssppRetroNative.setOption("ppsspp_software_rendering", "enabled")
+                runtimeOptions.forEach { (key, value) ->
+                    PpssppRetroNative.setOption(key, value)
+                }
                 PpssppRetroNative.init()
             }
             val loaded = runCatching { PpssppRetroNative.loadRom(rom.path) }.getOrDefault(false)
@@ -766,6 +763,29 @@ fun PpssppScreen(viewModel: MainViewModel, onGameplayChanged: (Boolean) -> Unit)
                         }
                     }
                     Spacer(Modifier.height(8.dp))
+                    Text("Performance preset", style = MaterialTheme.typography.bodySmall)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        PpssppPreset.entries.forEach { value ->
+                            FilterChip(
+                                selected = preset == value,
+                                onClick = {
+                                    preset = value
+                                    PpssppPrefs.setPreset(context, value)
+                                    cpuCore = value.cpuCore
+                                    PpssppPrefs.setCpuCore(context, value.cpuCore)
+                                    resolution = value.resolution
+                                    PpssppPrefs.setResolution(context, value.resolution)
+                                },
+                                label = { Text(value.label, maxLines = 1) }
+                            )
+                        }
+                    }
+                    Text(
+                        preset.description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(10.dp))
                     Text("CPU core", style = MaterialTheme.typography.bodySmall)
                     PpssppPrefs.CPU_CORES.forEach { value ->
                         Row(
@@ -776,9 +796,6 @@ fun PpssppScreen(viewModel: MainViewModel, onGameplayChanged: (Boolean) -> Unit)
                             Button(onClick = {
                                 cpuCore = value
                                 PpssppPrefs.setCpuCore(context, value)
-                                emuExecutor.execute {
-                                    runCatching { PpssppRetroNative.setOption("ppsspp_cpu_core", value) }
-                                }
                             }) { Text(if (cpuCore == value) "On" else "Set") }
                         }
                     }
@@ -793,12 +810,14 @@ fun PpssppScreen(viewModel: MainViewModel, onGameplayChanged: (Boolean) -> Unit)
                             Button(onClick = {
                                 resolution = value
                                 PpssppPrefs.setResolution(context, value)
-                                emuExecutor.execute {
-                                    runCatching { PpssppRetroNative.setOption("ppsspp_internal_resolution", value) }
-                                }
                             }) { Text(if (resolution == value) "On" else "Set") }
                         }
                     }
+                    Text(
+                        "Core options apply on next game launch.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     Spacer(Modifier.height(10.dp))
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         Text("Immersive fullscreen", modifier = Modifier.weight(1f))

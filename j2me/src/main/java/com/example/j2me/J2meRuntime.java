@@ -40,24 +40,35 @@ public final class J2meRuntime {
     }
 
     public static synchronized String install(Context context, Uri source) throws Exception {
+        return install(context, source, Collections.<Uri>emptyList());
+    }
+
+    public static synchronized String install(Context context, Uri source, List<Uri> extras) throws Exception {
         init(context);
         File cache = new File(context.getCacheDir(), "j2me-install");
         FileUtils.deleteDirectory(cache);
         if (!cache.mkdirs() && !cache.isDirectory()) throw new IOException("Cannot create install cache");
-        File src = copyToCache(context, source, cache);
+        try {
+            File src = copyToCache(context, source, cache);
+            if (extras != null) {
+                for (Uri extra : extras) {
+                    if (extra != null && !extra.equals(source)) copyToCache(context, extra, cache);
+                }
+            }
+            return installFromCache(cache, src);
+        } finally {
+            FileUtils.deleteDirectory(cache);
+        }
+    }
+
+    private static String installFromCache(File cache, File src) throws Exception {
         String name = src.getName().toLowerCase(Locale.US);
         File jar;
         Descriptor descriptor;
         if (name.endsWith(".jad")) {
             descriptor = new Descriptor(src, true);
-            String jarUrl = descriptor.getJarUrl();
-            if (jarUrl == null) throw new IOException("JAD missing MIDlet-Jar-URL");
-            File jarCandidate = new File(src.getParentFile(), jarUrl);
-            if (!jarCandidate.exists()) jarCandidate = new File(src.getParentFile(), new File(jarUrl).getName());
-            if (!jarCandidate.exists()) throw new IOException("JAR referenced by JAD not found; provide JAR/JAD together");
-            jar = jarCandidate;
-            Descriptor jarDesc = loadManifest(jar);
-            descriptor.merge(jarDesc);
+            jar = findJar(cache, src, descriptor.getJarUrl());
+            descriptor.merge(loadManifest(jar));
         } else if (name.endsWith(".jar")) {
             jar = src;
             descriptor = loadManifest(jar);
@@ -73,28 +84,30 @@ public final class J2meRuntime {
 
         String appId = makeAppId(descriptor, jar);
         File appDir = new File(Config.getAppDir(), appId);
-        FileUtils.deleteDirectory(appDir);
-        if (!appDir.mkdirs() && !appDir.isDirectory()) throw new IOException("Cannot create app dir");
+        File tmpDir = new File(appDir.getParentFile(), ".tmp-" + appId);
+        FileUtils.deleteDirectory(tmpDir);
+        if (!tmpDir.mkdirs() && !tmpDir.isDirectory()) throw new IOException("Cannot create staging dir");
 
-        File resJar = new File(appDir, Config.MIDLET_RES_FILE);
+        File resJar = new File(tmpDir, Config.MIDLET_RES_FILE);
         copyFile(jar, resJar);
-        writeManifest(new File(appDir, Config.MIDLET_MANIFEST_FILE), descriptor);
+        writeManifest(new File(tmpDir, Config.MIDLET_MANIFEST_FILE), descriptor);
 
-        File icon = extractIcon(jar, descriptor.getIcon());
-        if (icon != null) {
-            File iconOut = new File(appDir, Config.MIDLET_ICON_FILE);
-            copyFile(icon, iconOut);
+        try {
+            File icon = extractIcon(jar, descriptor.getIcon());
+            if (icon != null) copyFile(icon, new File(tmpDir, Config.MIDLET_ICON_FILE));
+        } catch (Exception ignored) {
         }
 
-        File dex = new File(appDir, Config.MIDLET_DEX_FILE);
+        File dex = new File(tmpDir, Config.MIDLET_DEX_FILE);
         convertJarToDex(resJar, dex);
+
+        FileUtils.deleteDirectory(appDir);
+        if (!tmpDir.renameTo(appDir)) throw new IOException("Cannot move staged app into place");
 
         File configDir = new File(Config.getConfigsDir(), appId);
         configDir.mkdirs();
         ProfileModel profile = new ProfileModel(new File(configDir, "config.json"));
         ProfilesManager.saveConfig(profile);
-
-        FileUtils.deleteDirectory(cache);
         return appId;
     }
 
@@ -138,19 +151,86 @@ public final class J2meRuntime {
     }
 
     private static File copyToCache(Context context, Uri source, File cache) throws IOException {
-        String name = "app.jar";
-        String last = source.getLastPathSegment();
-        if (last != null) {
-            int slash = last.lastIndexOf('/');
-            if (slash >= 0) last = last.substring(slash + 1);
-            if (!last.trim().isEmpty()) name = last;
-        }
-        File out = new File(cache, name);
+        String name = safeFileName(source.getLastPathSegment(), "app.bin");
+        File out = uniqueFile(cache, name);
         try (InputStream in = context.getContentResolver().openInputStream(source); OutputStream os = new FileOutputStream(out)) {
             if (in == null) throw new IOException("Cannot open source URI");
             IOUtils.copy(in, os);
         }
+        String ext = sniffExtension(out);
+        if (ext != null && !out.getName().toLowerCase(Locale.US).endsWith(ext)) {
+            File renamed = uniqueFile(cache, stripExtension(out.getName()) + ext);
+            if (!out.renameTo(renamed)) throw new IOException("Cannot stage " + out.getName());
+            out = renamed;
+        } else if (ext == null && !hasKnownExtension(out.getName())) {
+            throw new IOException("Unrecognized J2ME file: " + name);
+        }
         return out;
+    }
+
+    private static String safeFileName(String raw, String fallback) {
+        if (raw == null) return fallback;
+        int slash = Math.max(raw.lastIndexOf('/'), raw.lastIndexOf('\\'));
+        String name = slash >= 0 ? raw.substring(slash + 1) : raw;
+        name = name.replace('\u0000', '_').trim();
+        if (name.isEmpty() || name.equals(".") || name.equals("..")) return fallback;
+        return name;
+    }
+
+    private static File uniqueFile(File dir, String name) {
+        File out = new File(dir, name);
+        if (!out.exists()) return out;
+        String base = stripExtension(name);
+        String ext = name.substring(base.length());
+        for (int i = 1; i < 1000; i++) {
+            out = new File(dir, base + " (" + i + ")" + ext);
+            if (!out.exists()) return out;
+        }
+        return new File(dir, System.nanoTime() + ext);
+    }
+
+    private static String stripExtension(String name) {
+        int dot = name.lastIndexOf('.');
+        if (dot <= 0) return name;
+        return name.substring(0, dot);
+    }
+
+    private static boolean hasKnownExtension(String name) {
+        String lower = name.toLowerCase(Locale.US);
+        return lower.endsWith(".jar") || lower.endsWith(".jad") || lower.endsWith(".kjx");
+    }
+
+    private static String sniffExtension(File file) {
+        try (InputStream in = new FileInputStream(file)) {
+            byte[] head = new byte[512];
+            int read = in.read(head);
+            if (read >= 3 && head[0] == 'K' && head[1] == 'J' && head[2] == 'X') return ".kjx";
+            if (read >= 4 && head[0] == 'P' && head[1] == 'K' && (head[2] == 3 || head[2] == 5 || head[2] == 7)) return ".jar";
+            String text = new String(head, 0, Math.max(read, 0), "UTF-8");
+            if (text.contains("MIDlet-") || text.contains("Manifest-Version")) return ".jad";
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    private static File findJar(File cache, File jad, String jarUrl) throws IOException {
+        if (jarUrl != null && !jarUrl.trim().isEmpty()) {
+            String name = safeFileName(new File(jarUrl).getName(), "");
+            if (!name.isEmpty()) {
+                File direct = new File(cache, name);
+                if (direct.isFile()) return direct;
+                File[] matches = cache.listFiles((dir, child) -> child.equalsIgnoreCase(name));
+                if (matches != null && matches.length > 0 && matches[0].isFile()) return matches[0];
+            }
+        }
+        String alias = stripExtension(jad.getName()) + ".jar";
+        File aliasFile = new File(cache, alias);
+        if (aliasFile.isFile()) return aliasFile;
+        File[] matches = cache.listFiles((dir, child) -> child.equalsIgnoreCase(alias));
+        if (matches != null && matches.length > 0 && matches[0].isFile()) return matches[0];
+        File[] jars = cache.listFiles((dir, child) -> child.toLowerCase(Locale.US).endsWith(".jar"));
+        if (jars != null && jars.length == 1 && jars[0].isFile()) return jars[0];
+        throw new IOException("JAR referenced by JAD not found; provide JAR/JAD together");
     }
 
     private static Descriptor loadManifest(File jar) throws IOException {
@@ -170,7 +250,11 @@ public final class J2meRuntime {
     private static void convertJarToDex(File jar, File dex) throws Exception {
         File parent = dex.getParentFile();
         if (parent != null) parent.mkdirs();
-        Main.main(new String[]{"--dex", "--no-strict", "--output=" + dex.getAbsolutePath(), jar.getAbsolutePath()});
+        try {
+            Main.main(new String[]{"--no-optimize", "--core-library", "--output=" + dex.getAbsolutePath(), jar.getAbsolutePath()});
+        } catch (Throwable e) {
+            throw new IOException("Could not convert J2ME JAR to DEX: " + safe(e.getMessage(), e.getClass().getSimpleName()), e);
+        }
     }
 
     private static String makeAppId(Descriptor d, File jar) throws Exception {

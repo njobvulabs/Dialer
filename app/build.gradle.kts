@@ -157,6 +157,7 @@ dependencies {
   implementation(project(":j2me"))
   implementation(project(":Bcore"))
   implementation(libs.xz)
+  testImplementation(project(":dexlib"))
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)
   testImplementation(libs.junit)

@@ -83,6 +83,7 @@ fun LauncherShadeOverlay(
     val notifications by viewModel.launcherNotifications.collectAsState()
     val reduceMotion by viewModel.reduceMotion.collectAsState()
     var shadeOpen by remember { mutableStateOf(false) }
+    var notificationReplyOpen by remember { mutableStateOf(false) }
     var backdrop by remember { mutableStateOf<ImageBitmap?>(null) }
     var disposed by remember { mutableStateOf(false) }
     val offsetY = remember { Animatable(-2000f) }
@@ -117,6 +118,7 @@ fun LauncherShadeOverlay(
             }
             offsetY.animateTo(-screenHeightPx, tween(if (reduceMotion) 0 else 180))
             shadeOpen = false
+            notificationReplyOpen = false
             onShadeOpenChange(false)
         }
     }
@@ -203,7 +205,7 @@ fun LauncherShadeOverlay(
         }
     }
 
-    if (shadeOpen) BackHandler { dismiss() }
+    if (shadeOpen && !notificationReplyOpen) BackHandler { dismiss() }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val density = LocalDensity.current
@@ -291,6 +293,10 @@ fun LauncherShadeOverlay(
                                 openNotification(notif)
                             },
                             onDismissNotification = { key -> viewModel.dismissLauncherNotification(key) },
+                            onPerformAction = { key, index, input ->
+                                viewModel.actionLauncherNotification(key, index, input)
+                            },
+                            onReplyModeChange = { notificationReplyOpen = it },
                             fillRemaining = true,
                             modifier = Modifier
                                 .fillMaxWidth()

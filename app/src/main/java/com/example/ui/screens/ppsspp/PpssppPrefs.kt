@@ -8,8 +8,75 @@ enum class PpssppOrientation(val label: String) {
     PORTRAIT("Portrait")
 }
 
+enum class PpssppPreset(
+    val label: String,
+    val description: String,
+    val cpuCore: String,
+    val resolution: String,
+    val options: Map<String, String>
+) {
+    RECOMMENDED(
+        "Recommended",
+        "Balanced software rendering",
+        "JIT",
+        "480x272",
+        mapOf(
+            "ppsspp_backend" to "none",
+            "ppsspp_software_rendering" to "enabled",
+            "ppsspp_internal_resolution" to "480x272",
+            "ppsspp_frameskip" to "disabled",
+            "ppsspp_auto_frameskip" to "disabled",
+            "ppsspp_button_preference" to "Cross",
+            "ppsspp_analog_is_circular" to "enabled"
+        )
+    ),
+    COMPATIBILITY(
+        "Compatibility",
+        "Slower core settings for problem games",
+        "IR JIT",
+        "480x272",
+        mapOf(
+            "ppsspp_backend" to "none",
+            "ppsspp_software_rendering" to "enabled",
+            "ppsspp_internal_resolution" to "480x272",
+            "ppsspp_frameskip" to "disabled",
+            "ppsspp_auto_frameskip" to "disabled",
+            "ppsspp_fast_memory" to "disabled",
+            "ppsspp_ignore_bad_memory_access" to "enabled",
+            "ppsspp_io_timing_method" to "Host",
+            "ppsspp_force_lag_sync" to "disabled",
+            "ppsspp_locked_cpu_speed" to "disabled",
+            "ppsspp_button_preference" to "Cross",
+            "ppsspp_analog_is_circular" to "enabled"
+        )
+    ),
+    LAST_RESORT(
+        "Last resort",
+        "Prioritizes speed; visual glitches are possible",
+        "JIT",
+        "480x272",
+        mapOf(
+            "ppsspp_backend" to "none",
+            "ppsspp_software_rendering" to "enabled",
+            "ppsspp_internal_resolution" to "480x272",
+            "ppsspp_frameskip" to "1",
+            "ppsspp_auto_frameskip" to "enabled",
+            "ppsspp_frame_duplication" to "disabled",
+            "ppsspp_skip_buffer_effects" to "enabled",
+            "ppsspp_skip_gpu_readbacks" to "enabled",
+            "ppsspp_lower_resolution_for_effects" to "Aggressive",
+            "ppsspp_texture_scaling_level" to "disabled",
+            "ppsspp_texture_anisotropic_filtering" to "disabled",
+            "ppsspp_depth_raster" to "off",
+            "ppsspp_button_preference" to "Cross",
+            "ppsspp_analog_is_circular" to "enabled"
+        )
+    )
+}
+
 object PpssppPrefs {
     private const val FILE = "ppsspp"
+    private const val PRESET = "preset"
     private const val CPU_CORE = "cpu_core"
     private const val RESOLUTION = "resolution"
     private const val SOUND = "sound"
@@ -39,6 +106,23 @@ object PpssppPrefs {
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+
+    fun preset(context: Context): PpssppPreset {
+        val raw = prefs(context).getString(PRESET, PpssppPreset.RECOMMENDED.name)
+        return runCatching { PpssppPreset.valueOf(raw ?: "") }
+            .getOrDefault(PpssppPreset.RECOMMENDED)
+    }
+
+    fun setPreset(context: Context, value: PpssppPreset) {
+        prefs(context).edit().putString(PRESET, value.name).apply()
+    }
+
+    fun runtimeOptions(context: Context): Map<String, String> =
+        preset(context).options +
+            mapOf(
+                "ppsspp_cpu_core" to cpuCore(context),
+                "ppsspp_internal_resolution" to resolution(context)
+            )
 
     fun cpuCore(context: Context): String =
         prefs(context).getString(CPU_CORE, "JIT")?.takeIf { it in CPU_CORES } ?: "JIT"

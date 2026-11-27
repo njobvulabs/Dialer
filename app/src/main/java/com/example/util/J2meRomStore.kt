@@ -11,8 +11,11 @@ object J2meRomStore {
     fun load(context: Context): List<J2meApp> =
         J2meRuntime.listApps(context).sortedByDescending { J2mePrefs.lastPlayed(context, it.id) }
 
-    fun import(context: Context, uri: Uri): J2meApp? {
-        val id = J2meRuntime.install(context, uri)
+    fun import(context: Context, uri: Uri): J2meApp? = import(context, listOf(uri))
+
+    fun import(context: Context, uris: List<Uri>): J2meApp? {
+        if (uris.isEmpty()) return null
+        val id = J2meRuntime.install(context, uris.first(), uris.drop(1))
         return J2meRuntime.listApps(context).firstOrNull { it.id == id }
     }
 
