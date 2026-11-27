@@ -65,6 +65,24 @@ class SmsNotificationListener : NotificationListenerService() {
             runCatching { instance?.cancelNotification(key) }
         }
 
+        fun clearAll() {
+            val listener = instance ?: return
+            val clearable = activeSnapshots.values.filter { it.isClearable }
+            if (clearable.isEmpty()) return
+            clearable.forEach { snapshot ->
+                val canceled = runCatching { listener.cancelNotification(snapshot.key) }.isSuccess
+                if (!canceled) return@forEach
+                activeSnapshots.remove(snapshot.key)
+                activeSbns.remove(snapshot.key)
+                val set = activeKeys[snapshot.packageName]
+                if (set != null) {
+                    synchronized(set) { set.remove(snapshot.key) }
+                    if (synchronized(set) { set.isEmpty() }) activeKeys.remove(snapshot.packageName, set)
+                }
+            }
+            listener.broadcastCounts()
+        }
+
         fun performAction(key: String, index: Int, input: String?): Boolean {
             val notif = activeSbns[key]?.notification ?: return false
             val action = notif.actions?.getOrNull(index) ?: return false

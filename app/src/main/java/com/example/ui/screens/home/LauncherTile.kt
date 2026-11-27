@@ -311,7 +311,11 @@ fun GlassPanel(
     ) {
         Box(Modifier.matchParentSize().background(glassSheenBrush()))
         Box(Modifier.matchParentSize().border(1.dp, glassEdgeBrush(), shape))
-        Box(Modifier.padding(contentPadding)) { content() }
+        Box(Modifier.padding(contentPadding)) {
+            CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
+                content()
+            }
+        }
     }
 }
 

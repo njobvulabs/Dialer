@@ -641,6 +641,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         refreshLauncherNotifications()
     }
 
+    fun clearAllLauncherNotifications() {
+        SmsNotificationListener.clearAll()
+        refreshLauncherNotifications()
+    }
+
     fun actionLauncherNotification(key: String, index: Int, input: String?): Boolean {
         val sent = SmsNotificationListener.performAction(key, index, input)
         if (sent) refreshLauncherNotifications()

@@ -293,6 +293,7 @@ fun LauncherShadeOverlay(
                                 openNotification(notif)
                             },
                             onDismissNotification = { key -> viewModel.dismissLauncherNotification(key) },
+                            onClearAllNotifications = { viewModel.clearAllLauncherNotifications() },
                             onPerformAction = { key, index, input ->
                                 viewModel.actionLauncherNotification(key, index, input)
                             },

@@ -331,7 +331,7 @@ fun RetroScreen(viewModel: MainViewModel, onGameplayChanged: (Boolean) -> Unit) 
         if (game == null) {
             FloatingTopBar(useGlass = useGlass) {
                 Text(
-                    text = "Retro & PSP Emulator",
+                    text = "Retro Games",
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -364,7 +364,7 @@ fun RetroScreen(viewModel: MainViewModel, onGameplayChanged: (Boolean) -> Unit) 
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(Modifier.padding(14.dp)) {
-                            Text("Import Retro & PSP ROMs", style = MaterialTheme.typography.bodyMedium)
+                            Text("Import GB/GBC/GBA ROMs", style = MaterialTheme.typography.bodyMedium)
                             Text(
                                 "Defaults to Landscape & Immersive mode on Tecno Spark 40 (KM5). No BIOS or game files are bundled.",
                                 style = MaterialTheme.typography.bodySmall,

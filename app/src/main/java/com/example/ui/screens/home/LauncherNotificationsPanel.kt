@@ -57,6 +57,7 @@ fun LauncherNotificationsPanel(
     hasAccess: Boolean,
     onOpenNotification: (LauncherNotification) -> Unit,
     onDismissNotification: (String) -> Unit,
+    onClearAllNotifications: () -> Unit = {},
     onPerformAction: (String, Int, String?) -> Unit,
     onReplyModeChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -110,6 +111,7 @@ fun LauncherNotificationsPanel(
                     "Notifications",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
                 if (!hasAccess) {
@@ -119,6 +121,10 @@ fun LauncherNotificationsPanel(
                         }
                     }) {
                         Text("Grant access")
+                    }
+                } else if (notifications.any { it.isClearable }) {
+                    TextButton(onClick = onClearAllNotifications) {
+                        Text("Clear all")
                     }
                 }
             }
@@ -256,6 +262,7 @@ private fun NotificationRow(
                             notification.title,
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
                             maxLines = if (expanded) Int.MAX_VALUE else 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.clickable { onToggleExpanded() }

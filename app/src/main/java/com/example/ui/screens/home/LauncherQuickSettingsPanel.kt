@@ -402,7 +402,8 @@ fun LauncherQuickSettingsPanel(
                         Text(
                             "Quick settings",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
                             "Brightness preview, local toggles and system settings shortcuts",
@@ -554,7 +555,12 @@ private fun QuickTileEditorDialog(
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit quick settings") },
+        title = {
+            Text(
+                "Edit quick settings",
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        },
         text = {
             Column(
                 modifier = Modifier
@@ -595,6 +601,7 @@ private fun QuickTileEditorDialog(
                         Text(
                             tile.title,
                             style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.weight(1f)
                         )
                         IconButton(
