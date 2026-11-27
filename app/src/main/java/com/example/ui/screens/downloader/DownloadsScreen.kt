@@ -1,8 +1,6 @@
 package com.example.ui.screens.downloader
 
-import android.content.ClipData
 import android.content.Context
-import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -27,7 +25,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.example.ui.components.landscapeContentWidth
@@ -86,11 +83,6 @@ private fun mimeFor(file: File): String = when (file.extension.lowercase()) {
 fun isOpenableInApp(file: File): Boolean {
     val e = file.extension.lowercase()
     return e in imageExts || e in videoExts || e in audioExts
-}
-
-private fun shareMime(files: List<File>): String {
-    val types = files.map(::mimeFor).distinct()
-    return if (types.size == 1) types.single() else "*/*"
 }
 
 /**
@@ -154,50 +146,6 @@ fun DownloadsScreen(
         pruneSelection()
     }
 
-    fun shareSelection(paths: List<String>) {
-        val toShare = paths.map(::File).filter { it.isFile }
-        if (toShare.isEmpty()) {
-            Toast.makeText(context, "Nothing to share", Toast.LENGTH_SHORT).show()
-            return
-        }
-        val uris = toShare.mapNotNull { file ->
-            runCatching {
-                FileProvider.getUriForFile(
-                    context,
-                    "${context.packageName}.fileprovider",
-                    file
-                )
-            }.getOrNull()
-        }
-        if (uris.isEmpty()) {
-            Toast.makeText(context, "Could not share these files", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        val mime = shareMime(toShare)
-        val intent = if (uris.size == 1) {
-            Intent(Intent.ACTION_SEND).apply {
-                type = mime
-                putExtra(Intent.EXTRA_STREAM, uris.single())
-            }
-        } else {
-            Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-                type = mime
-                putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
-            }
-        }
-        val clip = ClipData.newRawUri("downloads", uris.first())
-        uris.drop(1).forEach { clip.addItem(ClipData.Item(it)) }
-        intent.clipData = clip
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-
-        runCatching {
-            context.startActivity(Intent.createChooser(intent, "Share downloads"))
-        }.onFailure {
-            Toast.makeText(context, "No app can share these files", Toast.LENGTH_SHORT).show()
-        }
-    }
-
     val lifecycleOwner = LocalLifecycleOwner.current
     LaunchedEffect(Unit) { DownloadManager.attach(context) }
     LaunchedEffect(lifecycleOwner) {
@@ -247,9 +195,6 @@ fun DownloadsScreen(
                         },
                         enabled = filteredFiles.isNotEmpty()
                     ) { Text("All") }
-                    IconButton(onClick = { shareSelection(selected.keys.toList()) }) {
-                        Icon(AppIcons.Share, "Share selected")
-                    }
                     IconButton(onClick = {
                         val doomed = selected.keys.toList()
                         if (doomed.isNotEmpty()) pendingDelete = doomed

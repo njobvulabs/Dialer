@@ -189,19 +189,6 @@ fun WifiShareScreen(
         toast("Link copied")
     }
 
-    fun shareUrl() {
-        runCatching {
-            val send = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(
-                    Intent.EXTRA_TEXT,
-                    "Transfer files to me over Wi-Fi:\n$serverAddress\n\nOpen this link in any browser on my Wi-Fi/Hotspot network."
-                )
-            }
-            context.startActivity(Intent.createChooser(send, "Share transfer link"))
-        }
-    }
-
     val folderLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) {
             SafPrefs.save(context, WifiShareServer.PREFS, uri)
@@ -359,12 +346,6 @@ fun WifiShareScreen(
                             Icon(AppIcons.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Copy")
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        OutlinedButton(onClick = { shareUrl() }) {
-                            Icon(AppIcons.Share, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Share Link")
                         }
                     }
                 }

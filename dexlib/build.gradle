@@ -1,0 +1,32 @@
+plugins {
+    id 'com.android.library'
+}
+
+android {
+    namespace 'ru.playsoftware.j2meloader.dexlib'
+    compileSdk { version = release(37) }
+
+    defaultConfig {
+        minSdk 26
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    lint {
+        abortOnError false
+    }
+
+    compileOptions {
+        targetCompatibility JavaVersion.VERSION_11
+        sourceCompatibility JavaVersion.VERSION_11
+    }
+}
+
+dependencies {
+    implementation 'net.lingala.zip4j:zip4j:2.11.6'
+    implementation 'org.ow2.asm:asm:9.11'
+}

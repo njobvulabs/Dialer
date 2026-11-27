@@ -1,11 +1,9 @@
 package com.example.ui.screens.gallery
 
-import android.content.ClipData
 import android.content.ContentResolver
 import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
-import android.content.Intent
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
@@ -330,28 +328,6 @@ fun GalleryScreen(
         clearSelection()
     }
 
-    fun shareUris(uris: List<Uri>) {
-        if (uris.isEmpty()) return
-        if (uris.size == 1) {
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "image/*"
-                putExtra(Intent.EXTRA_STREAM, uris[0])
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            runCatching { context.startActivity(Intent.createChooser(intent, "Share Image")) }
-        } else {
-            val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-                type = "image/*"
-                putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
-                clipData = ClipData.newUri(context.contentResolver, "images", uris[0]).apply {
-                    uris.drop(1).forEach { addItem(ClipData.Item(it)) }
-                }
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            runCatching { context.startActivity(Intent.createChooser(intent, "Share Images")) }
-        }
-    }
-
     val sortedFolders = remember(folders, favorites, favoriteItems, folderSort) {
         val base = folders.filter { it.id != "all" && it.id != "favorites" }
         when (folderSort) {
@@ -605,9 +581,6 @@ fun GalleryScreen(
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.inverseOnSurface
                         )
-                        IconButton(onClick = { shareUris(selectionUris) }) {
-                            Icon(AppIcons.Share, contentDescription = "Share", tint = MaterialTheme.colorScheme.inverseOnSurface)
-                        }
                         IconButton(onClick = {
                             showCopyDialog = true
                             copyIsMove = false
@@ -709,7 +682,6 @@ fun GalleryScreen(
                     sheetRow(AppIcons.CheckCircle, "Select for multi-edit") {
                         selected = selected + sheet.uri.toString()
                     }
-                    sheetRow(AppIcons.Share, "Share") { shareUris(listOf(sheet.uri)) }
                     sheetRow(AppIcons.ContentCopy, "Copy to folder…") {
                         selected = selected + sheet.uri.toString()
                         copyIsMove = false
@@ -958,9 +930,6 @@ fun GalleryScreen(
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.inverseOnSurface
                         )
-                        IconButton(onClick = { shareUris(folderSelectionUris) }) {
-                            Icon(AppIcons.Share, contentDescription = "Share", tint = MaterialTheme.colorScheme.inverseOnSurface)
-                        }
                         IconButton(onClick = {
                             showFolderCopyDialog = true
                             folderCopyIsMove = false

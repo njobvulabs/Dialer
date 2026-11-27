@@ -27,6 +27,18 @@
 -keepclasseswithmembernames,includedescriptorclasses class * {
     native <methods>;
 }
+-keep class com.example.ui.screens.retro.RetroNative { *; }
+-keep class com.example.ui.screens.ppsspp.PpssppRetroNative { *; }
+-keep class com.example.j2me.** { *; }
+-keep class javax.microedition.** { *; }
+-keep class javax.bluetooth.** { *; }
+-keep class javax.obex.** { *; }
+-keep class javax.wireless.messaging.** { *; }
+-keep class org.microemu.** { *; }
+-keep class ru.playsoftware.j2meloader.** { *; }
+-keep class ru.woesss.j2me.** { *; }
+-keep class com.vodafone.** { *; }
+-keep class mmpp.** { *; }
 -keepclassmembers class * implements android.os.Parcelable {
     public static final android.os.Parcelable$Creator *;
 }

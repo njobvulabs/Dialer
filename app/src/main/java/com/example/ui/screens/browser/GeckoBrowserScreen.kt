@@ -1700,24 +1700,6 @@ fun GeckoBrowserScreen(
                     }
                 }
 
-                fun shareLink() {
-                    val shared = link ?: text
-                    if (shared.isBlank()) return
-                    runCatching {
-                        context.startActivity(
-                            Intent.createChooser(
-                                Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_TEXT, shared)
-                                },
-                                if (link != null) "Share link" else "Share text"
-                            )
-                        )
-                    }.onFailure {
-                        Toast.makeText(context, "No app to share with", Toast.LENGTH_SHORT).show()
-                    }
-                }
-
                 fun searchSelection(siteOnly: Boolean) {
                     val query = text.trim()
                     if (query.isEmpty()) return
@@ -1843,12 +1825,6 @@ fun GeckoBrowserScreen(
                                     onClick = { dismiss(); selectAll() },
                                     modifier = Modifier.fillMaxWidth()
                                 ) { Text("Select All") }
-                            }
-                            if (target.isLink || target.hasSelection) {
-                                TextButton(
-                                    onClick = { dismiss(); shareLink() },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) { Text(if (target.isLink) "Share" else "Share Text") }
                             }
                             if (target.isImage) {
                                 TextButton(

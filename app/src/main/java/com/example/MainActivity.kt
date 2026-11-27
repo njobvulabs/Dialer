@@ -316,7 +316,7 @@ fun MainAppContent(viewModel: MainViewModel) {
             viewModel.lastAppId.value?.takeIf {
                 it !in listOf(
                     "camera", "flashlight", "recorder", "screenrecorder", "calculator", "qrscanner", "btinput", "stopwatch", "tts", "wifiaudio",
-                    "appkiller", "networktools", "mediaserver", "ftpserver", "todo", "converter", "documents"
+                    "appkiller", "networktools", "mediaserver", "ftpserver", "todo", "converter", "documents", "retro", "j2me", "ppsspp"
                 ) && !it.startsWith("geckowebapp:")
             }
         )
@@ -343,8 +343,12 @@ fun MainAppContent(viewModel: MainViewModel) {
     var immersiveReturnId by remember { mutableStateOf<String?>(null) }
 
     var isBrowserFullscreen by remember { mutableStateOf(false) }
+    var retroPlaying by remember { mutableStateOf(false) }
+    var ppssppPlaying by remember { mutableStateOf(false) }
 
     fun closeImmersive() {
+        retroPlaying = false
+        ppssppPlaying = false
         val returnTo = immersiveReturnId
         if (returnTo != null) {
             immersiveReturnId = null
@@ -450,11 +454,13 @@ fun MainAppContent(viewModel: MainViewModel) {
             activeStreamVideoUrl != null ||
             immersiveAppId in listOf("web", "browserdownloads") ||
             immersiveAppId?.startsWith("webapp:") == true ||
-            isBrowserFullscreen
+            isBrowserFullscreen ||
+            (immersiveAppId == "retro" && retroPlaying) ||
+            (immersiveAppId == "ppsspp" && ppssppPlaying)
 
     val shadeBlockedRoutes = listOf(
         "camera", "screenrecorder", "terminal", "vnc", "hidoverlay", "hidlock",
-        "qrscanner", "scanpdf", "imageeditor", "ocr", "sandbox"
+        "qrscanner", "scanpdf", "imageeditor", "ocr", "sandbox", "retro", "j2me", "ppsspp"
     )
     val shadeAllowed = launcherQuickShadeEnabled &&
             !activeCallState.hasActiveCall &&
@@ -782,7 +788,9 @@ fun MainAppContent(viewModel: MainViewModel) {
         // background there. Every other immersive screen keeps the normal inset.
         val edgeToEdgeImmersive =
             immersiveAppId == "camera" ||
-                (immersiveAppId == "gallery" && galleryViewerOpen)
+                (immersiveAppId == "gallery" && galleryViewerOpen) ||
+                (immersiveAppId == "retro" && retroPlaying) ||
+                (immersiveAppId == "ppsspp" && ppssppPlaying)
         Scaffold(
         ) { innerPadding ->
             // imePadding shrinks the immersive web content (GeckoView/WebView)
@@ -934,6 +942,15 @@ fun MainAppContent(viewModel: MainViewModel) {
                     "deviceinfo" -> DeviceInfoScreen(viewModel = viewModel)
                     "apkbackup" -> DeviceInfoScreen(viewModel = viewModel, initialTab = "apps")
                     "sandbox" -> SandboxScreen(viewModel = viewModel)
+                    "retro" -> com.example.ui.screens.retro.RetroScreen(
+                        viewModel = viewModel,
+                        onGameplayChanged = { retroPlaying = it }
+                    )
+                    "j2me" -> com.example.ui.screens.j2me.J2meScreen(viewModel = viewModel)
+                    "ppsspp" -> com.example.ui.screens.ppsspp.PpssppScreen(
+                        viewModel = viewModel,
+                        onGameplayChanged = { ppssppPlaying = it }
+                    )
                     "ocr" -> com.example.ui.screens.ocr.OcrScreen(
                         onClose = ::closeImmersive,
                         onTakePhotoFromCamera = {

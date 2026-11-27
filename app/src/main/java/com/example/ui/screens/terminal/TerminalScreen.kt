@@ -3,7 +3,6 @@ package com.example.ui.screens.terminal
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.os.VibrationEffect
@@ -505,22 +504,6 @@ fun TerminalScreen(onBack: () -> Unit) {
                                     val bytes = text.toByteArray(Charsets.UTF_8)
                                     activeSession?.write(bytes, 0, bytes.size)
                                 }
-                            }
-                            view?.stopTextSelectionMode()
-                            showLongPressMenu = false
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Share") },
-                        enabled = view?.isSelectingText() == true,
-                        onClick = {
-                            val text = view?.getSelectedText()
-                            if (!text.isNullOrEmpty()) {
-                                val intent = Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_TEXT, text)
-                                }
-                                context.startActivity(Intent.createChooser(intent, "Share text"))
                             }
                             view?.stopTextSelectionMode()
                             showLongPressMenu = false

@@ -1,0 +1,82 @@
+plugins {
+    id 'com.android.library'
+}
+
+android {
+    namespace 'ru.playsoftware.j2meloader'
+    compileSdk { version = release(37) }
+
+    defaultConfig {
+        minSdk 26
+        consumerProguardFiles 'consumer-rules.pro'
+        buildConfigField 'String', 'VERSION_NAME', '"embedded"'
+        buildConfigField 'String', 'FLAVOR', '"full"'
+    }
+
+    buildFeatures {
+        buildConfig true
+        viewBinding true
+        resValues true
+    }
+
+    buildTypes {
+        release {
+            buildConfigField 'boolean', 'FULL_EMULATOR', 'true'
+        }
+        debug {
+            buildConfigField 'boolean', 'FULL_EMULATOR', 'true'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+        disable 'MissingTranslation', 'ExtraTranslation'
+    }
+
+    packaging {
+        resources {
+            excludes += ['META-INF/LICENSE*', 'META-INF/NOTICE*']
+        }
+    }
+}
+
+dependencies {
+    def roomVersion = '2.8.5'
+    def cameraxVersion = '1.6.2'
+
+    implementation project(':dexlib')
+    implementation 'androidx.appcompat:appcompat:1.8.0'
+    implementation 'androidx.core:core:1.18.0'
+    implementation 'androidx.annotation:annotation:1.9.1'
+    implementation 'androidx.activity:activity:1.13.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.2.2'
+    implementation 'androidx.recyclerview:recyclerview:1.4.0'
+    implementation 'androidx.preference:preference:1.2.1'
+    implementation "androidx.room:room-runtime:$roomVersion"
+    implementation "androidx.room:room-rxjava2:$roomVersion"
+    annotationProcessor "androidx.room:room-compiler:$roomVersion"
+    implementation "androidx.camera:camera-core:$cameraxVersion"
+    implementation "androidx.camera:camera-camera2:$cameraxVersion"
+    implementation "androidx.camera:camera-lifecycle:$cameraxVersion"
+    implementation "androidx.camera:camera-view:$cameraxVersion"
+    implementation 'com.google.android.material:material:1.13.0'
+    implementation 'com.android.volley:volley:1.2.1'
+    implementation 'com.google.code.gson:gson:2.14.0'
+    implementation 'com.google.guava:guava:33.7.2-android'
+    implementation 'io.reactivex.rxjava2:rxandroid:2.1.1'
+    implementation 'net.lingala.zip4j:zip4j:2.11.6'
+    implementation 'com.github.nikita36078:pngj:2.2.3'
+    implementation 'io.github.nikita36078:ffmpeg-kit:6.0.LTS'
+    implementation 'com.google.oboe:oboe:1.11.0'
+    implementation 'com.github.nikita36078:filepicker:4.3.0'
+    implementation 'com.github.yukuku:ambilwarna:2.0.1'
+    implementation 'ch.acra:acra-dialog:5.14.2'
+    compileOnly 'com.google.auto.service:auto-service-annotations:1.1.1'
+    annotationProcessor 'com.google.auto.service:auto-service:1.1.1'
+    annotationProcessor 'org.jetbrains.kotlin:kotlin-metadata-jvm:2.4.21'
+}

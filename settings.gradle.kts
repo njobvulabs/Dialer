@@ -29,6 +29,8 @@ rootProject.name = "nj-dialer"
 include(":app")
 include(":terminal-emulator")
 include(":terminal-view")
+include(":j2me")
+include(":dexlib")
 include(":Bcore")
 include(":black-reflection")
 include(":compiler")

@@ -1881,39 +1881,7 @@ fun FileActionsDialog(
                         }
                     }
 
-                    // Share File
                     if (!item.isDirectory) {
-                        TextButton(
-                            onClick = {
-                                try {
-                                    val uri: Uri = try {
-                                        FileProvider.getUriForFile(
-                                            context,
-                                            "${context.packageName}.fileprovider",
-                                            item.file
-                                        )
-                                    } catch (e: Exception) {
-                                        Uri.fromFile(item.file)
-                                    }
-
-                                    val intent = Intent(Intent.ACTION_SEND).apply {
-                                        type = item.mimeType
-                                        putExtra(Intent.EXTRA_STREAM, uri)
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    }
-                                    context.startActivity(Intent.createChooser(intent, "Share File"))
-                                } catch (e: Exception) {
-                                    Toast.makeText(context, "Sharing unavailable", Toast.LENGTH_SHORT).show()
-                                }
-                                onDismiss()
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(AppIcons.Share, contentDescription = null)
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text("Share File", modifier = Modifier.weight(1f))
-                        }
-
                         // Send via Bluetooth
                         //
                         // Deliberately does NOT reuse the chooser above: pairing

@@ -116,6 +116,14 @@
             android:theme="@style/Theme.MyApplication" />
 
         <activity
+            android:name="javax.microedition.shell.J2meEmulatorActivity"
+            android:exported="false"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden|keyboard"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.MyApplication"
+            tools:replace="android:configChanges,android:theme" />
+
+        <activity
             android:name=".GeckoWebActivity"
             android:process=":whatsapp"
             android:launchMode="singleTask"

@@ -1,0 +1,75 @@
+{
+   "admin-email" : "admin@website.psp",
+   "capabilities" : [
+      "RELAY_TRANSPORT_TCP",
+      "RELAY_TRANSPORT_ENET",
+      "RELAY_PDP_PROTOCOL_V1",
+      "RELAY_PTP_PROTOCOL_V1",
+      "ADHOCCTL_TRANSPORT_TCP",
+      "ADHOCCTL_TRANSPORT_ENET",
+      "ADHOCCTL_PROTOCOL_V1",
+      "ADHOCCTL_RELAY_ONLY"
+   ],
+   "location" : "On the internet",
+   "name" : "PSP multiplayer server",
+   "owner-name" : "Admin",
+   "website" : "http://website.psp/",
+   "games" : [
+      {
+         "game_ids" : [
+            "ULES00982"
+         ],
+         "groups" : [
+            {
+               "name" : "",
+               "usercount" : "1",
+               "users" : [
+                  {
+                     "name" : "Katie",
+                     "pdp_ports" : [
+                        20000,
+                        14495,
+                        14497,
+                        10001
+                     ],
+                     "ptp_ports" : []
+                  }
+               ]
+            }
+         ],
+         "name" : "ULES00982",
+         "usercount" : "1"
+      },
+      {
+         "game_ids" : [
+            "UCUS98632",
+            "UCES01245",
+            "UCAS40265"
+         ],
+         "groups" : [
+            {
+               "name" : "race01",
+               "usercount" : "2",
+               "users" : [
+                  {
+                     "name" : "PPSSPP",
+                     "pdp_ports" : [
+                        10001
+                     ],
+                     "ptp_ports" : []
+                  },
+                  {
+                     "name" : "PPSSPP",
+                     "pdp_ports" : [
+                        10001
+                     ],
+                     "ptp_ports" : []
+                  }
+               ]
+            }
+         ],
+         "name" : "Gran Turismo",
+         "usercount" : "2"
+      }
+   ]
+}

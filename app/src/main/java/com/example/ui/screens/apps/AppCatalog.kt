@@ -60,8 +60,16 @@ val TOOLS: List<AppItem> = listOf(
     AppItem("qrscanner", "QR Scanner", AppIcons.QrCodeScanner, "Scan QR & barcodes", "qr,barcode,scan", "Tools"),
     AppItem("vault", "Vault", AppIcons.Lock, "Private file vault", "private,secure,encrypted,files", "Tools"),
     AppItem("apkbackup", "APK Backup", AppIcons.Backup, "Back up apps", "apk,backup,install", "Tools"),
-    AppItem("sandbox", "APK Sandbox", AppIcons.Android, "Run APKs in a virtual Android environment", "apk,sandbox,virtual,clone,test", "Tools"),
     AppItem("deviceinfo", "Phone Info", AppIcons.PhoneAndroid, "Device details", "info,battery,system", "Tools")
+)
+
+/** Native runtime/virtual-machine apps grouped on the Home grid. Terminal stays last. */
+val EMULATORS: List<AppItem> = listOf(
+    AppItem("sandbox", "APK Sandbox", AppIcons.Android, "Run APKs in a virtual Android environment", "apk,sandbox,virtual,clone,test,emulator", "Emulators"),
+    AppItem("retro", "Retro Games", AppIcons.SportsEsports, "Play imported GB/GBC/GBA games", "emulator,gameboy,gba,rom,muga", "Emulators"),
+    AppItem("j2me", "J2ME Loader", AppIcons.Memory, "Play imported Java ME games", "emulator,j2me,java,me,jar,jad,midlet", "Emulators"),
+    AppItem("ppsspp", "PSP Emulator", AppIcons.SportsEsports, "Play imported PSP games", "emulator,ppsspp,psp,iso,cso,rom", "Emulators"),
+    AppItem("terminal", "Terminal", AppIcons.Terminal, "Linux shell", "shell,linux,debian,emulator,vm", "Emulators")
 )
 
 /** The former "Web Apps" hub contents (launched through the Gecko activities). */
@@ -90,7 +98,7 @@ val WEB_APPS: List<AppItem> = listOf(
     AppItem("webappcreator", "Web App Creator", AppIcons.Add, "Create your own web apps", "web,creator,add,app", "Web apps")
 )
 
-/** Core comms (first) and the trailing utility/settings items. */
+/** Core comms and the trailing utility/settings items. */
 private val LAUNCHER_CORE: List<AppItem> = listOf(
     AppItem("phone", "Phone", AppIcons.Phone, "Recents & keypad", "dial,keypad,recents", "Comms"),
     AppItem("contacts", "Contacts", AppIcons.Contacts, "Your contacts", "people,phonebook", "Comms"),
@@ -100,7 +108,6 @@ private val LAUNCHER_CORE: List<AppItem> = listOf(
 )
 
 private val LAUNCHER_TAIL: List<AppItem> = listOf(
-    AppItem("terminal", "Terminal", AppIcons.Terminal, "Linux shell", "shell,linux,debian", "System"),
     AppItem("launchersettings", "Launcher Settings", AppIcons.DisplaySettings, "Home layout & background", "launcher,home,wallpaper,tiles,columns", "System"),
     AppItem("assistantsettings", "Assistant Settings", AppIcons.SmartToy, "Floating assistant options", "assistant,bubble,floating,overlay", "System"),
     AppItem("settings", "Settings", AppIcons.Settings, "App preferences", "preferences,config", "System")
@@ -108,12 +115,13 @@ private val LAUNCHER_TAIL: List<AppItem> = listOf(
 
 /**
  * The launcher grouped into labelled sections for the Home grid headers, in the
- * display order comms first, then the app/tool grids, then the web apps, with
+ * display order emulators first, then comms/apps/tools, then the web apps, with
  * Settings last. Only NJ-Dialer's own features live here — no installed device
  * apps. Filtering happens before grouping so a header never appears with no
  * tiles under it.
  */
 val LAUNCHER_SECTIONS: List<Pair<String, List<AppItem>>> = buildList {
+    add("Emulators" to EMULATORS)
     add("Comms" to LAUNCHER_CORE)
     add("Apps" to APPS)
     add("Tools" to TOOLS)

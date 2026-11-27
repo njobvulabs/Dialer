@@ -1,0 +1,5 @@
+-keep class javax.microedition.** { *; }
+-keep class org.microemu.** { *; }
+-keep class ru.playsoftware.j2meloader.** { *; }
+-keep class ru.woesss.j2me.** { *; }
+-keep class com.example.j2me.** { *; }

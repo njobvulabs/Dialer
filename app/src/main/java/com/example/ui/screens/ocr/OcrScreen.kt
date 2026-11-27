@@ -171,17 +171,6 @@ fun OcrScreen(
                         Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
                     }) { Icon(AppIcons.ContentCopy, contentDescription = "Copy") }
                     IconButton(onClick = {
-                        val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(android.content.Intent.EXTRA_TEXT, extracted)
-                        }
-                        runCatching {
-                            context.startActivity(
-                                android.content.Intent.createChooser(send, "Share text")
-                            )
-                        }
-                    }) { Icon(AppIcons.Share, contentDescription = "Share") }
-                    IconButton(onClick = {
                         scope.launch(kotlinx.coroutines.Dispatchers.IO) {
                             runCatching {
                                 val db = com.example.data.db.AppDatabase.getDatabase(context)

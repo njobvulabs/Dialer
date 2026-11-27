@@ -10,6 +10,14 @@ plugins {
 android {
   namespace = "com.example"
   compileSdk { version = release(37) }
+  ndkVersion = "27.1.12297006"
+
+  externalNativeBuild {
+    cmake {
+      path = file("src/main/cpp/CMakeLists.txt")
+      version = "3.22.1"
+    }
+  }
 
   defaultConfig {
     applicationId = "com.aistudio.phone.dialer.app"
@@ -146,6 +154,7 @@ dependencies {
   implementation(libs.commons.compress)
   // Linux Terminal (PRoot): terminal emulator/view modules + xz rootfs extraction.
   implementation(project(":terminal-view"))
+  implementation(project(":j2me"))
   implementation(project(":Bcore"))
   implementation(libs.xz)
   testImplementation(libs.androidx.core)

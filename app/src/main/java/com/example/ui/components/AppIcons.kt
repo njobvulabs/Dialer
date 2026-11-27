@@ -250,6 +250,7 @@ object AppIcons {
     val Sort = Icons.Filled.Sort
     val SortByAlpha = Icons.Filled.SortByAlpha
     val Speed = Icons.Filled.Speed
+    val SportsEsports = Icons.Filled.SportsEsports
     val Star = Icons.Filled.Star
     val StarBorder = Icons.Filled.StarBorder
     val StickyNote2 = Icons.Filled.StickyNote2

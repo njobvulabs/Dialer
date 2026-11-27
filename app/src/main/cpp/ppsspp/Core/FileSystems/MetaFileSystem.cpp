@@ -1,0 +1,820 @@
+// Copyright (c) 2012- PPSSPP Project.
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, version 2.0 or later versions.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License 2.0 for more details.
+
+// A copy of the GPL 2.0 should have been included with the program.
+// If not, see http://www.gnu.org/licenses/
+
+// Official git repository and contact information can be found at
+// https://github.com/hrydgard/ppsspp and http://www.ppsspp.org/.
+
+#include <algorithm>
+#include <cstring>
+
+#include "Common/Serialize/Serializer.h"
+#include "Common/Serialize/SerializeFuncs.h"
+#include "Common/Serialize/SerializeMap.h"
+#include "Common/StringUtils.h"
+#include "Core/FileSystems/MetaFileSystem.h"
+#include "Core/HLE/sceKernelThread.h"
+#include "Core/Reporting.h"
+#include "Core/System.h"
+
+static bool ApplyPathStringToComponentsVector(std::vector<std::string> &vector, const std::string &pathString)
+{
+	size_t len = pathString.length();
+	size_t start = 0;
+
+	while (start < len)
+	{
+		// TODO: This should only be done for ms0:/ etc.
+		size_t i = pathString.find_first_of("/\\", start);
+		if (i == std::string::npos)
+			i = len;
+
+		if (i > start)
+		{
+			std::string component = pathString.substr(start, i - start);
+			if (component != ".")
+			{
+				if (component == "..")
+				{
+					if (vector.size() != 0)
+					{
+						vector.pop_back();
+					}
+					else
+					{
+						// The PSP silently ignores attempts to .. to parent of root directory
+						WARN_LOG(Log::FileSystem, "RealPath: ignoring .. beyond root - root directory is its own parent: \"%s\"", pathString.c_str());
+					}
+				}
+				else
+				{
+					vector.push_back(component);
+				}
+			}
+		}
+
+		start = i + 1;
+	}
+
+	return true;
+}
+
+/*
+ * Changes relative paths to absolute, removes ".", "..", and trailing "/"
+ * "drive:./blah" is absolute (ignore the dot) and "/blah" is relative (because it's missing "drive:")
+ * babel (and possibly other games) use "/directoryThatDoesNotExist/../directoryThatExists/filename"
+ */
+static bool RealPath(const std::string &currentDirectory, const std::string &inPath, std::string &outPath)
+{
+	size_t inLen = inPath.length();
+	if (inLen == 0)
+	{
+		outPath = currentDirectory;
+		return true;
+	}
+
+	size_t inColon = inPath.find(':');
+	if (inColon + 1 == inLen)
+	{
+		// There's nothing after the colon, e.g. umd0: - this is perfectly valid.
+		outPath = inPath;
+		return true;
+	}
+
+	bool relative = (inColon == std::string::npos);
+	
+	std::string prefix, inAfterColon;
+	std::vector<std::string> cmpnts;  // path components
+	size_t outPathCapacityGuess = inPath.length();
+
+	if (relative)
+	{
+		size_t curDirLen = currentDirectory.length();
+		if (curDirLen == 0)
+		{
+			ERROR_LOG(Log::FileSystem, "RealPath: inPath \"%s\" is relative, but current directory is empty", inPath.c_str());
+			return false;
+		}
+		
+		size_t curDirColon = currentDirectory.find(':');
+		if (curDirColon == std::string::npos)
+		{
+			ERROR_LOG(Log::FileSystem, "RealPath: inPath \"%s\" is relative, but current directory \"%s\" has no prefix", inPath.c_str(), currentDirectory.c_str());
+			return false;
+		}
+		if (curDirColon + 1 == curDirLen)
+		{
+			WARN_LOG(Log::FileSystem, "RealPath: inPath \"%s\" is relative, but current directory \"%s\" is all prefix and no path. Using \"/\" as path for current directory.", inPath.c_str(), currentDirectory.c_str());
+		}
+		else
+		{
+			const std::string curDirAfter = currentDirectory.substr(curDirColon + 1);
+			if (! ApplyPathStringToComponentsVector(cmpnts, curDirAfter) )
+			{
+				ERROR_LOG(Log::FileSystem,"RealPath: currentDirectory is not a valid path: \"%s\"", currentDirectory.c_str());
+				return false;
+			}
+
+			outPathCapacityGuess += curDirLen;
+		}
+
+		prefix = currentDirectory.substr(0, curDirColon + 1);
+		inAfterColon = inPath;
+	}
+	else
+	{
+		prefix = inPath.substr(0, inColon + 1);
+		inAfterColon = inPath.substr(inColon + 1);
+
+		// Special case: "disc0:" is different from "disc0:/", so keep track of the single slash.
+		if (inAfterColon == "/")
+		{
+			outPath = prefix + inAfterColon;
+			return true;
+		}
+	}
+
+	if (! ApplyPathStringToComponentsVector(cmpnts, inAfterColon) )
+	{
+		WARN_LOG(Log::FileSystem, "RealPath: inPath is not a valid path: \"%s\"", inPath.c_str());
+		return false;
+	}
+
+	outPath.clear();
+	outPath.reserve(outPathCapacityGuess);
+
+	outPath.append(prefix);
+
+	size_t numCmpnts = cmpnts.size();
+	for (size_t i = 0; i < numCmpnts; i++)
+	{
+		outPath.append(1, '/');
+		outPath.append(cmpnts[i]);
+	}
+
+	return true;
+}
+
+IFileSystem *MetaFileSystem::GetHandleOwner(u32 handle) const
+{
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	for (size_t i = 0; i < fileSystems.size(); i++)
+	{
+		if (fileSystems[i].system->OwnsHandle(handle))
+			return fileSystems[i].system.get();
+	}
+
+	// Not found
+	return nullptr;
+}
+
+std::string MetaFileSystem::GetCurrentDirForThread(int threadID) const {
+	auto iter = currentDir.find(threadID);
+	if (iter == currentDir.end()) {
+		return "";
+	}
+	return iter->second;
+}
+
+int MetaFileSystem::MapFilePath(std::string_view _inpath, std::string *outpath, MountPoint **system) {
+	int error = SCE_KERNEL_ERROR_ERRNO_FILE_NOT_FOUND;
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	std::string realpath;
+
+	std::string inpath(_inpath);
+
+	// "ms0:/file.txt" is equivalent to "   ms0:/file.txt".  Yes, really.
+	if (inpath.find(':') != inpath.npos) {
+		size_t offset = 0;
+		while (inpath[offset] == ' ') {
+			offset++;
+		}
+		if (offset > 0) {
+			inpath = inpath.substr(offset);
+		}
+	}
+
+	const std::string *currentDirectory = &startingDirectory;
+
+	// Hm, does this make sense? Doesn't each drive has its own currentDir per thread, or maybe not?
+	int currentThread = __KernelGetCurThread();
+	auto it = currentDir.find(currentThread);
+	if (it == currentDir.end()) {
+		// Attempt to emulate SCE_KERNEL_ERROR_NOCWD / 8002032C: may break things requiring fixes elsewhere
+		if (inpath.find(':') == std::string::npos /* means path is relative */) {
+			error = SCE_KERNEL_ERROR_NOCWD;
+			WARN_LOG(Log::FileSystem, "Path is relative, but current directory not set for thread %i. returning 8002032C(SCE_KERNEL_ERROR_NOCWD) instead.", currentThread);
+		}
+	} else {
+		currentDirectory = &(it->second);
+	}
+
+	if (RealPath(*currentDirectory, inpath, realpath)) {
+		std::string prefix = realpath;
+		size_t prefixPos = realpath.find(':');
+		if (prefixPos != realpath.npos)
+			prefix = NormalizePrefix(realpath.substr(0, prefixPos + 1));
+
+		for (size_t i = 0; i < fileSystems.size(); i++) {
+			if (equalsNoCase(fileSystems[i].prefix, prefix)) {
+				// Map into the underlying filesystem. If the mount specifies a subDir,
+				// join that with the path inside the device.
+				std::string basePath = realpath.substr(prefixPos + 1); // may be empty or start with '/'
+				const std::string &mountSub = fileSystems[i].subDir;
+				if (mountSub.empty()) {
+					*outpath = basePath;
+				} else {
+					// Normalize subDir: ensure it starts with '/' and has no trailing slash (unless it's root "/").
+					std::string s = mountSub;
+					if (s.empty()) s = "/";
+					if (s[0] != '/') s.insert(s.begin(), '/');
+					if (s.size() > 1 && s.back() == '/') s.pop_back();
+					if (basePath.empty()) {
+						*outpath = s;
+					} else {
+						*outpath = s + basePath; // basePath usually starts with '/'
+					}
+				}
+				*system = &(fileSystems[i]);
+
+				VERBOSE_LOG(Log::FileSystem, "MapFilePath: mapped \"%s\" to prefix: \"%s\", path: \"%s\"", inpath.c_str(), fileSystems[i].prefix.c_str(), outpath->c_str());
+
+				return error == SCE_KERNEL_ERROR_NOCWD ? error : 0;
+			}
+		}
+
+		error = SCE_KERNEL_ERROR_NODEV;
+	}
+
+	DEBUG_LOG(Log::FileSystem, "MapFilePath: failed mapping \"%s\", returning false", inpath.c_str());
+	return error;
+}
+
+std::string_view MetaFileSystem::NormalizePrefix(std::string_view prefix) const {
+	// Let's apply some mapping here since it won't break savestates.
+	if (prefix == "memstick:")
+		return "ms0:";
+	// Seems like umd00: etc. work just fine... avoid umd1/umd for tests.
+	if (startsWith(prefix, "umd") && prefix != "umd1:" && prefix != "umd:")
+		return "umd0:";
+	// Seems like umd00: etc. work just fine...
+	if (startsWith(prefix, "host"))
+		return "host0:";
+
+	// Should we simply make this case insensitive?
+	if (prefix == "DISC0:")
+		return "disc0:";
+	return prefix;
+}
+
+void MetaFileSystem::Mount(std::string_view prefix, std::shared_ptr<IFileSystem> system, std::string_view subDir) {
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	for (auto &it : fileSystems) {
+		if (it.prefix == prefix) {
+			// Overwrite the old mount.
+			it.system = system;
+			it.subDir = std::string(subDir);
+			return;
+		}
+	}
+
+	// Prefix not yet mounted, do so.
+	MountPoint x;
+	x.prefix = prefix;
+	x.system = system;
+	x.subDir = std::string(subDir);
+	fileSystems.push_back(x);
+}
+
+// Assumes the lock is held
+void MetaFileSystem::UnmountAll() {
+	fileSystems.clear();
+	currentDir.clear();
+}
+
+void MetaFileSystem::Unmount(std::string_view prefix) {
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	for (auto iter = fileSystems.begin(); iter != fileSystems.end(); iter++) {
+		if (iter->prefix == prefix) {
+			fileSystems.erase(iter);
+			return;
+		}
+	}
+}
+
+IFileSystem *MetaFileSystem::GetSystemFromFilename(std::string_view filename) {
+	size_t prefixPos = filename.find(':');
+	if (prefixPos == filename.npos) {
+		// Relative to the current directory, which names the device.
+		std::string path;
+		IFileSystem *system = nullptr;
+		if (MapFilePath(filename, &path, &system) == 0) {
+			return system;
+		}
+		return nullptr;
+	}
+	return GetSystem(filename.substr(0, prefixPos + 1));
+}
+
+IFileSystem *MetaFileSystem::GetSystem(std::string_view prefix) {
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	for (auto it = fileSystems.begin(); it != fileSystems.end(); ++it) {
+		if (it->prefix == NormalizePrefix(prefix))
+			return it->system.get();
+	}
+	return NULL;
+}
+
+void MetaFileSystem::Shutdown() {
+	std::lock_guard<std::recursive_mutex> guard(lock);
+
+	UnmountAll();
+	Reset();
+}
+
+int MetaFileSystem::OpenFile(std::string filename, FileAccess access, const char *devicename)
+{
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	std::string of;
+	MountPoint *mount;
+	int error = MapFilePath(filename, &of, &mount);
+	if (error != 0) {
+		return error;
+	}
+	int handle = mount->system->OpenFile(of, access, mount->prefix.c_str());
+	if (handle < 0 && (mount->system->Flags() & FileSystemFlags::UMD)) {
+		failedDiscReads_++;
+	}
+	return handle;
+}
+
+PSPFileInfo MetaFileSystem::GetFileInfo(std::string filename)
+{
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	std::string of;
+	IFileSystem *system;
+	int error = MapFilePath(filename, &of, &system);
+	if (error == 0)
+	{
+		return system->GetFileInfo(of);
+	}
+	else
+	{
+		PSPFileInfo bogus;
+		return bogus; 
+	}
+}
+
+PSPFileInfo MetaFileSystem::GetFileInfoByHandle(u32 handle) {
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	IFileSystem *sys = GetHandleOwner(handle);
+	if (sys)
+		return sys->GetFileInfoByHandle(handle);
+	return PSPFileInfo();
+}
+
+std::vector<PSPFileInfo> MetaFileSystem::GetDirListing(std::string_view path, bool *exists) {
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	std::string of;
+	IFileSystem *system;
+	int error = MapFilePath(path, &of, &system);
+	if (error == 0) {
+		return system->GetDirListing(of, exists);
+	} else {
+		std::vector<PSPFileInfo> empty;
+		if (exists)
+			*exists = false;
+		return empty;
+	}
+}
+
+void MetaFileSystem::ThreadEnded(int threadID)
+{
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	currentDir.erase(threadID);
+}
+
+int MetaFileSystem::ChDir(const std::string &dir)
+{
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	// Retain the old path and fail if the arg is 1023 bytes or longer.
+	if (dir.size() >= 1023)
+		return SCE_KERNEL_ERROR_NAMETOOLONG;
+
+	int curThread = __KernelGetCurThread();
+	
+	std::string of;
+	MountPoint *mountPoint;
+	int error = MapFilePath(dir, &of, &mountPoint);
+	if (error == 0)
+	{
+		currentDir[curThread] = mountPoint->prefix + of;
+		return 0;
+	}
+	else
+	{
+		for (size_t i = 0; i < fileSystems.size(); i++)
+		{
+			const std::string &prefix = fileSystems[i].prefix;
+			if (strncasecmp(prefix.c_str(), dir.c_str(), prefix.size()) == 0)
+			{
+				// The PSP is completely happy with invalid current dirs as long as they have a valid device.
+				WARN_LOG(Log::FileSystem, "ChDir failed to map path \"%s\", saving as current directory anyway", dir.c_str());
+				currentDir[curThread] = dir;
+				return 0;
+			}
+		}
+
+		WARN_LOG_REPORT(Log::FileSystem, "ChDir failed to map device for \"%s\", failing", dir.c_str());
+		return SCE_KERNEL_ERROR_NODEV;
+	}
+}
+
+bool MetaFileSystem::MkDir(const std::string &dirname)
+{
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	std::string of;
+	IFileSystem *system;
+	int error = MapFilePath(dirname, &of, &system);
+	if (error == 0)
+	{
+		return system->MkDir(of);
+	}
+	else
+	{
+		return false;
+	}
+}
+
+bool MetaFileSystem::RmDir(const std::string &dirname)
+{
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	std::string of;
+	IFileSystem *system;
+	int error = MapFilePath(dirname, &of, &system);
+	if (error == 0)
+	{
+		return system->RmDir(of);
+	}
+	else
+	{
+		return false;
+	}
+}
+
+int MetaFileSystem::RenameFile(const std::string &from, const std::string &to)
+{
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	std::string of;
+	std::string rf;
+	IFileSystem *osystem;
+	IFileSystem *rsystem = NULL;
+	int error = MapFilePath(from, &of, &osystem);
+	if (error == 0)
+	{
+		// If it's a relative path, it seems to always use from's filesystem.
+		if (to.find(":/") != to.npos)
+		{
+			error = MapFilePath(to, &rf, &rsystem);
+			if (error < 0)
+				return -1;
+		}
+		else
+		{
+			rf = to;
+			rsystem = osystem;
+		}
+
+		if (osystem != rsystem)
+			return SCE_KERNEL_ERROR_XDEV;
+
+		return osystem->RenameFile(of, rf);
+	}
+	else
+	{
+		return -1;
+	}
+}
+
+int MetaFileSystem::MoveFileToPath(const std::string &from, const std::string &to) {
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	std::string of;
+	std::string rf;
+	IFileSystem *osystem;
+	IFileSystem *rsystem;
+	if (MapFilePath(from, &of, &osystem) < 0 || MapFilePath(to, &rf, &rsystem) < 0) {
+		return -1;
+	}
+	if (osystem != rsystem) {
+		return SCE_KERNEL_ERROR_XDEV;
+	}
+	return osystem->MoveFileToPath(of, rf);
+}
+
+bool MetaFileSystem::SetFileWritable(const std::string &filename, bool writable)
+{
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	std::string of;
+	IFileSystem *system;
+	int error = MapFilePath(filename, &of, &system);
+	if (error == 0) {
+		return system->SetFileWritable(of, writable);
+	} else {
+		return false;
+	}
+}
+
+bool MetaFileSystem::RemoveFile(const std::string &filename)
+{
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	std::string of;
+	IFileSystem *system;
+	int error = MapFilePath(filename, &of, &system);
+	if (error == 0) {
+		return system->RemoveFile(of);
+	} else {
+		return false;
+	}
+}
+
+int MetaFileSystem::Ioctl(u32 handle, u32 cmd, u32 indataPtr, u32 inlen, u32 outdataPtr, u32 outlen, int &usec)
+{
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	IFileSystem *sys = GetHandleOwner(handle);
+	if (sys)
+		return sys->Ioctl(handle, cmd, indataPtr, inlen, outdataPtr, outlen, usec);
+	return SCE_KERNEL_ERROR_ERROR;
+}
+
+PSPDevType MetaFileSystem::DevType(u32 handle)
+{
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	IFileSystem *sys = GetHandleOwner(handle);
+	if (sys)
+		return sys->DevType(handle);
+	return PSPDevType::INVALID;
+}
+
+void MetaFileSystem::CloseFile(u32 handle)
+{
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	IFileSystem *sys = GetHandleOwner(handle);
+	if (sys)
+		sys->CloseFile(handle);
+}
+
+size_t MetaFileSystem::ReadFile(u32 handle, u8 *pointer, s64 size)
+{
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	IFileSystem *sys = GetHandleOwner(handle);
+	if (sys)
+		return sys->ReadFile(handle, pointer, size);
+	failedDiscReads_++;
+	return 0;
+}
+
+size_t MetaFileSystem::WriteFile(u32 handle, const u8 *pointer, s64 size)
+{
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	IFileSystem *sys = GetHandleOwner(handle);
+	if (sys)
+		return sys->WriteFile(handle, pointer, size);
+	else
+		return 0;
+}
+
+size_t MetaFileSystem::ReadFile(u32 handle, u8 *pointer, s64 size, int &usec)
+{
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	IFileSystem *sys = GetHandleOwner(handle);
+	if (sys)
+		return sys->ReadFile(handle, pointer, size, usec);
+	failedDiscReads_++;
+	return 0;
+}
+
+size_t MetaFileSystem::WriteFile(u32 handle, const u8 *pointer, s64 size, int &usec)
+{
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	IFileSystem *sys = GetHandleOwner(handle);
+	if (sys)
+		return sys->WriteFile(handle, pointer, size, usec);
+	else
+		return 0;
+}
+
+size_t MetaFileSystem::SeekFile(u32 handle, s64 position, FileMove type)
+{
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	IFileSystem *sys = GetHandleOwner(handle);
+	if (sys)
+		return sys->SeekFile(handle, position, type);
+	failedDiscReads_++;
+	return 0;
+}
+
+int MetaFileSystem::ReadEntireFile(const std::string &filename, std::vector<u8> &data, bool quiet, size_t maxSize) {
+	FileAccess access = FILEACCESS_READ;
+	if (quiet) {
+		access = (FileAccess)(access | FILEACCESS_PPSSPP_QUIET);
+	}
+	int handle = OpenFile(filename, access);
+	if (handle < 0)
+		return handle;
+
+	SeekFile(handle, 0, FILEMOVE_END);
+	// A failed seek is (size_t)-1, which an s64 only sees as negative on 64-bit.
+	const size_t fileSize = GetSeekPos(handle);
+	SeekFile(handle, 0, FILEMOVE_BEGIN);
+	if (fileSize == (size_t)-1 || fileSize > maxSize || fileSize > data.max_size()) {
+		CloseFile(handle);
+		return SCE_KERNEL_ERROR_ERROR;
+	}
+	const size_t dataSize = (size_t)fileSize;
+	data.resize(dataSize);
+
+	size_t result = ReadFile(handle, data.data(), dataSize);
+	CloseFile(handle);
+
+	if (result != dataSize)
+		return SCE_KERNEL_ERROR_ERROR;
+
+	return 0;
+}
+
+u64 MetaFileSystem::FreeDiskSpace(const std::string &path) {
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	std::string of;
+	IFileSystem *system;
+	int error = MapFilePath(path, &of, &system);
+	if (error == 0)
+		return system->FreeDiskSpace(of);
+	else
+		return 0;
+}
+
+void MetaFileSystem::DoState(PointerWrap &p) {
+	std::lock_guard<std::recursive_mutex> guard(lock);
+
+	auto s = p.Section("MetaFileSystem", 1, 2);
+	if (!s)
+		return;
+
+	Do(p, current);
+
+	// Save/load per-thread current directory map
+	Do(p, currentDir);
+
+	if (s < 2) {
+		DoStatePositionalMounts(p);
+		return;
+	}
+
+	// Each mount is stored as its prefix, the size of its filesystem's state, and that state. A load
+	// pairs them with our mounts by prefix, skips any we don't have, and leaves a mount the state
+	// doesn't have as it is. So mounts can be added, removed and reordered freely.
+	u32 n = (u32)fileSystems.size();
+	Do(p, n);
+
+	if (p.mode == PointerWrap::MODE_READ) {
+		for (u32 i = 0; i < n; i++) {
+			std::string prefix;
+			u32 size = 0;
+			Do(p, prefix);
+			Do(p, size);
+			if (p.Failed() || !p.CheckRead(size)) {
+				p.SetError(p.ERROR_FAILURE);
+				ERROR_LOG(Log::FileSystem, "Savestate failure: bad mount entry %d", (int)i);
+				return;
+			}
+			u8 *data = *p.ptr;
+			p.SkipBytes(size);
+
+			auto mount = std::find_if(fileSystems.begin(), fileSystems.end(), [&](const MountPoint &m) {
+				return m.prefix == prefix;
+			});
+			if (mount == fileSystems.end()) {
+				WARN_LOG(Log::FileSystem, "Savestate has a mount we don't have, skipping it: %s", prefix.c_str());
+				continue;
+			}
+
+			// Read through a PointerWrap of its own, so it can't read past its own data.
+			PointerWrap sub(&data, PointerWrap::MODE_READ);
+			sub.SetReadEnd(data + size);
+			mount->system->DoState(sub);
+			if (sub.Failed()) {
+				p.SetError(p.ERROR_FAILURE);
+				ERROR_LOG(Log::FileSystem, "Savestate failure: couldn't load mount %s (at section %s)", prefix.c_str(), sub.GetBadSectionTitle() ? sub.GetBadSectionTitle() : "unknown");
+				return;
+			}
+		}
+		return;
+	}
+
+	for (const MountPoint &mount : fileSystems) {
+		std::string prefix = mount.prefix;
+		Do(p, prefix);
+		// Filled in once the filesystem's state is written.
+		u8 *sizePtr = *p.ptr;
+		if (p.mode == PointerWrap::MODE_VERIFY) {
+			p.SkipBytes(sizeof(u32));
+		} else {
+			u32 size = 0;
+			Do(p, size);
+		}
+		const size_t start = p.Offset();
+		mount.system->DoState(p);
+		if (p.mode == PointerWrap::MODE_WRITE) {
+			const u32 size = (u32)(p.Offset() - start);
+			memcpy(sizePtr, &size, sizeof(size));
+		}
+	}
+}
+
+// Version 1 of the state: the mounts with no prefixes or sizes, one after another.
+void MetaFileSystem::DoStatePositionalMounts(PointerWrap &p) {
+	u32 n = (u32)fileSystems.size();
+	Do(p, n);
+
+	// The mounts are serialized positionally: one section per mount, in fileSystems order, with no
+	// length to skip by. That order is the order Mount() first saw each prefix during boot, which
+	// spans more than MountFileSystems() - booting an ISO, MountGameISO() has already added umd0:,
+	// umd1:, umd: and disc0: by the time we get there. An older build's savestate simply lacks the
+	// sections for mounts that didn't exist yet, and we have to leave out exactly those to stay
+	// lined up. We only know how many are missing (n), not which, hence the list below.
+	//
+	// Mounts added before version 2, newest first: a state missing k mounts is missing the k most
+	// recently added ones. Mounts added since don't go here (version 2 states name their mounts),
+	// but old states still rely on the existing mounts keeping their relative order.
+	static const char * const mountsAddedOverTime[] = { "flash1:", "pfat0:" };
+
+	const size_t missing = n < (u32)fileSystems.size() ? fileSystems.size() - n : 0;
+	if (n > (u32)fileSystems.size() || missing > ARRAY_SIZE(mountsAddedOverTime)) {
+		p.SetError(p.ERROR_FAILURE);
+		ERROR_LOG(Log::FileSystem, "Savestate failure: number of filesystems doesn't match (%d in state, %d mounted).", (int)n, (int)fileSystems.size());
+		return;
+	}
+
+	for (const MountPoint &mount : fileSystems) {
+		bool skip = false;
+		for (size_t i = 0; i < missing; i++) {
+			if (mount.prefix == mountsAddedOverTime[i]) {
+				skip = true;
+				break;
+			}
+		}
+		if (!skip) {
+			mount.system->DoState(p);
+		}
+	}
+}
+
+int64_t MetaFileSystem::RecursiveSize(std::string_view dirPath) {
+	u64 result = 0;
+	auto allFiles = GetDirListing(std::string(dirPath));
+	for (const auto &file : allFiles) {
+		if (file.name == "." || file.name == "..")
+			continue;
+		if (file.type == FILETYPE_DIRECTORY) {
+			result += RecursiveSize(join(dirPath, file.name));
+		} else {
+			result += file.size;
+		}
+	}
+	return result;
+}
+
+int64_t MetaFileSystem::ComputeRecursiveDirectorySize(std::string_view filename) {
+	std::lock_guard<std::recursive_mutex> guard(lock);
+	std::string of;
+	IFileSystem *system;
+	int error = MapFilePath(filename, &of, &system);
+	if (error == 0) {
+		int64_t size;
+		if (system->ComputeRecursiveDirSizeIfFast(of, &size)) {
+			// Some file systems can optimize this.
+			return size;
+		} else {
+			// Those that can't, we just run a generic implementation.
+			return RecursiveSize(filename);
+		}
+	} else {
+		return false;
+	}
+}
+
+bool MetaFileSystem::ComputeRecursiveDirSizeIfFast(const std::string &path, int64_t *size) {
+	// Shouldn't be called. Can't recurse MetaFileSystem.
+	_dbg_assert_(false);
+	return false;
+}

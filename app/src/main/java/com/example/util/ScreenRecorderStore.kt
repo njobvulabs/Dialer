@@ -25,17 +25,6 @@ object ScreenRecorderStore {
             ?.sortedByDescending { it.lastModified() }
             ?: emptyList()
 
-    fun share(context: Context, file: File) {
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        val intent = Intent(Intent.ACTION_SEND)
-            .setType("video/mp4")
-            .putExtra(Intent.EXTRA_STREAM, uri)
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        runCatching {
-            context.startActivity(Intent.createChooser(intent, "Share recording").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        }
-    }
-
     fun open(context: Context, file: File) {
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         val intent = Intent(Intent.ACTION_VIEW)

@@ -10,7 +10,9 @@ and utilities (Bible, Nyimbo, Flashlight, Sound Recorder, Internet Radio, Calcul
 BT Mouse & Keyboard, Wi‑Fi Transfer, Samba, Text Extract, APK Backup,
 Phone Info, Calendar, Scan to PDF, Text Editor, Archive Manager).
 
-**Calendar & Scan to PDF:** the Calendar manages events and appointments (event CRUD includes add/edit/delete). Scan to PDF accepts added photos only and converts them locally into a shareable PDF.
+**Calendar & Scan to PDF:** the Calendar manages events and appointments (event CRUD includes add/edit/delete). Scan to PDF accepts added photos only and converts them locally into a PDF.
+
+**Share actions** were removed app-wide from File Manager, Sound Recorder, APK Backup, OCR/Text Extract, Terminal long-press, Contacts, Call History, Text Editor, Gallery, Downloads, browser link/text menus, Wi-Fi Transfer and Screen Recorder. The deliberate non-Share actions remain: SMS `ACTION_SENDTO`, File Manager **Send via Bluetooth**, and Wi-Fi Transfer/Samba **share folder** / **Share name** wording.
 
 Every app view shares one unified top bar (no duplicate headers), and the app remembers your
 last screen — the launcher page, which Phone tab you were on, the open app, the open
@@ -52,7 +54,7 @@ under **Comms / Apps / Tools / Web apps / System** section headers.
   **no on-screen Back button**; use the system back gesture to close them. **Video
   Downloader** remains the separate yt-dlp downloader.
 - **Launcher Settings** (its own tile) controls **Grid / List layout**, **grid columns**
-  (Auto / 4 / 5), **tile size** (Compact / Default / Large), **app labels**, **show clock &
+  (Auto / 4 / 5 / 6), **tile size** (Compact / Default / Large), **app labels**, **show clock &
   date** (with live seconds) and its **clock format** (System / 12-hour / 24-hour),
   **section headers**, the **Recent row**, the **System Tools page**, a custom
   **Static** or **Slideshow** background (up to 20 images, 15 s–1 h interval,
@@ -92,14 +94,14 @@ under **Comms / Apps / Tools / Web apps / System** section headers.
 - **Opened from the Home grid** — there is no bottom dock. The Phone screen holds the
   **Recents / Contacts / SMS** sub-tabs, switched by swiping the Phone pager or by launching
   a specific tab from the launcher tiles
-- Dialer keypad, T9 contact search, call history, favorites, blocked numbers, speed dials
+- Dialer keypad, contact search by name/number, call history, favorites, blocked numbers, speed dials
 - **Jump straight to a tab from the launcher** — the Phone, Contacts and Messages tiles, and
   the missed-call / unread-SMS chips, open the matching sub-tab
 - In-app call screen with notifications/permissions handling
 - **Settings opens from its own launcher tile** — app preferences (theme, color,
   call behaviors, backup & restore)
 - Tapping a caller's name in **call history opens the full contact details** panel
-  (call/message/share/edit/delete), matching what you see in the Contacts tab
+  (call/message/edit/delete), matching what you see in the Contacts tab
 - **Call history is one row per contact** — a person's calls are grouped under a
   single row however each one was dialled ("+265 99…" and "099…" are the same person),
   showing the name, the **number** and the date. Tap the row to expand the individual
@@ -169,14 +171,14 @@ under **Comms / Apps / Tools / Web apps / System** section headers.
 - **Text Editor** — edit text/code files from its Home-grid tile or from the File Manager, with
   multiple tabs, recent files and draft recovery, encoding/BOM/newline preservation, line numbers,
    find/replace, go-to-line, auto-indent, syntax highlighting, word wrap, font-size and tab-size
-   controls (the control row scrolls so −/+ stay reachable in portrait), Share/Rename/Delete, and
+   controls (the control row scrolls so −/+ stay reachable in portrait), Rename/Delete, and
    Save / Save As / New with dirty-state prompts. Close it with
   the system back gesture; its top bar follows the glass style when enabled.
 - **Archive Manager** — extract ZIP/TAR/GZ/TGZ/TBZ/7z archives (including password-protected ZIP/7z)
   or create ZIP/7z archives from selected files, with optional 7z passwords, compression levels,
    collision handling, progress/cancel and split-ZIP staging. It has a dedicated Home-grid tile and
    File Manager handoff; RAR is recognized but unsupported by the bundled archive library. The top bar
-   has no Share button; its File Manager action returns to Archive Manager on Back. It also closes
+   has no Share action; its File Manager action returns to Archive Manager on Back. It also closes
    with the back gesture and follows the glass top-bar style.
 - **Vault** — its own Home-grid tile opens the PIN-protected encrypted vault without going
   through the File Manager; it has no on-screen Back button.
@@ -258,10 +260,10 @@ under **Comms / Apps / Tools / Web apps / System** section headers.
   separate) and remembered: grant, deny, or leave on Ask to get Gecko's own prompt.
   You can see every site with a stored decision, forget one, or clear them all
 - **Long-press anything for the app's own context menu** — a **link** gets New Tab,
-  Incognito, Copy Link, Share, plus **Download image** / **Download video** when it really
+  Incognito, Copy Link, plus **Download image** / **Download video** when it really
   is a media file (video goes through the yt-dlp downloader, so it keeps your login).
-  A long-press on plain **text** now opens this same menu with **Copy Text**, **Select All**
-  and **Share Text** instead of only Gecko's bare two-row popup, and a long-press on a link
+  A long-press on plain **text** now opens this same menu with **Copy Text** and
+  **Select All** instead of only Gecko's bare two-row popup, and a long-press on a link
   inside a selection offers both sets of rows at once. Copy/Select all act on the real page
   selection, so they keep working as a normal selection.
 - **Camera** — Transsion-style modes: AI CAM, Portrait (on-device
@@ -360,16 +362,16 @@ under **Comms / Apps / Tools / Web apps / System** section headers.
   text to show, so they stay silent.
 - **Internet Radio** — live Malawi radio stations (Zodiak, Capital Radio, Times Radio,
   MBC Radio 1 & 2 FM, Mzati, Chanco, Timveni, BT Synod, TWR) streaming via
-  ExoPlayer/Media3 with a resilient HTTP datasource. It lives on the **Tools tab** (its
-  own full screen with a floating top bar, sitting just after Sound Recorder) — it used
-  to open only from inside the Audio Player
+  ExoPlayer/Media3 with a resilient HTTP datasource. It lives in the Home grid's **Tools**
+  group (its own full screen with a floating top bar, sitting just after Sound Recorder) — it
+  used to open only from inside the Audio Player
 - **Image Gallery** — photos grouped by folder (cover thumbnails + counts), pinned
   "All Photos" & "Favorites", full-screen viewer with zoom/rotate/flip and prev/next,
   search + sort (both held as **icons in the bar** — tap Search to reveal the search
   field inside a folder, exactly like the folder grid), long-press **multi-select**
-  (share / copy / move / delete / favorite), slideshow, and one-tap "Open in Image Editor"
+  (copy / move / delete / favorite), slideshow, and one-tap "Open in Image Editor"
 - **Gallery photo delete, three ways** — long-press a photo for an action sheet
-  (**Select for multi-edit / Share / Copy to folder… / Move to folder… / Favorites /
+  (**Select for multi-edit / Copy to folder… / Move to folder… / Favorites /
   Details / Delete**); long-press the "Delete" row while photos are selected and it
   says "Delete N selected image(s)" so it never quietly removes just the one photo you
   pressed; or tap the **trash icon in the full-screen viewer**, which now works for
@@ -380,7 +382,8 @@ under **Comms / Apps / Tools / Web apps / System** section headers.
   ratios 1:1/4:3/16:9/9:16 or Free), filters, brightness/contrast/saturation, draw, text,
   save to gallery, then return to the source photo (viewer or Gallery folder)
 - **File Manager → Send via Bluetooth** — the three-dot menu on any **file** has a
-  dedicated **"Send via Bluetooth"** row right under **Share File**. It hands the file
+  dedicated **"Send via Bluetooth"** row below the file details/actions (**Share File was
+  removed**). It hands the file
   straight to the Bluetooth app's own share/OPP handler (so you get pairing and the
   transfer progress) instead of making you dig through a generic chooser, and falls back
   to the chooser on ROMs that expose no such activity. No Bluetooth permission is needed to
@@ -424,11 +427,12 @@ card to enter selection mode (checkmark + highlighted border, "N selected" in th
   backup card is a compact icon row with app/backed-up/size counts — no "APK Storage"
   heading or folder path.
   They used to share one screen with a pill switcher, which is gone — each is now launched
-  from its own tile on the **Tools tab**
+  from its own tile in the Home grid's **Tools** group
 - **Network Tools** — ping (with latency stats), download speed test, common-port
   scanner, DNS lookup and Wi-Fi details (SSID, signal, link speed, IP/DNS)
-- **Text Extract (OCR)** — on-device ML Kit text recognition: pick an image and copy, share,
-  or save the extracted text straight into Notes. Launched from the **Tools tab** tile, from any
+- **Text Extract (OCR)** — on-device ML Kit text recognition: pick an image and copy or save
+  the extracted text straight into Notes. Launched from a tile in the Home grid's **Tools**
+  group, from any
   **image file's three-dot menu → "Extract Text"** (which returns you to the File Manager),
   or from the in-app camera
  - **Video Downloader** — bundled yt-dlp engine (Python + FFmpeg) with a built-in
@@ -475,21 +479,20 @@ card to enter selection mode (checkmark + highlighted border, "N selected" in th
   and bookmarks are all scoped per translation. Long-pressing a verse reveals **Copy / Share /
   Bookmark / footnotes**. A floating top bar carries **back (chapter → book list → exit),
   text size, translation and search**; the on-screen back walks up a level instead of leaving.
-  Launched from the **Tools** tab.
+  Launched from the Home grid's **Tools** group.
 - **Nyimbo (Chichewa hymnal)** — *Nyimbo za Chitsitsimutso*, bundled offline as
   `assets/hymns_nyimbo.json` (331 hymns). Search by number, Chichewa title, English title or
   any stanza line; star favorites, resume from a continue-reading row, and adjust the reading
   font with a slider. (Hymn 76's text is missing from the source scan; it appears as a visible
   "Text unavailable in source" entry so the numbering stays continuous.) Launched from the
-  **Tools** tab, right after the Bible.
+  Home grid's **Tools** group, right after the Bible.
 ### Tools
 The **Tools** tile group on the Home grid gathers the reading apps and utilities that used to
 be scattered across the File Manager's ⋮ menu, System Tools, and the Audio Player. Each opens
 as a full-screen immersive route with its own floating top bar; **back returns to the
 launcher, not to the File Manager**. The tile order is deliberate — **Bible is first with
 Nyimbo (the Chichewa hymnal) right after it**, **Internet Radio sits just after Sound
-Recorder**, and **BT Mouse & Keyboard sits just after Calculator**, followed by
-**VNC Viewer**:
+Recorder**, and **BT Mouse & Keyboard sits just after Calculator**:
 
 1. **Bible** — KJV + Chichewa, fully offline (see below).
 2. **Nyimbo** — *Nyimbo za Chitsitsimutso*, the Chichewa hymnal: searchable by number,
@@ -508,14 +511,17 @@ Recorder**, and **BT Mouse & Keyboard sits just after Calculator**, followed by
 8. **Stopwatch & Timer** — stopwatch with laps plus a countdown timer.
 9. **BT Mouse & Keyboard** — use the phone as a Bluetooth trackpad + keyboard for a PC
    (see below).
-10. **VNC Viewer** — control a remote desktop with a pure-Kotlin RFB client (see below).
-11. **Wi-Fi Transfer** — HTTP server to share files over Wi‑Fi (see below).
-12. **Samba Server** — browse and stream network shares (see below).
-13. **Text Extract** — on-device OCR (ML Kit) with Copy/Share/Save-to-Notes.
-14. **APK Backup** — back up installed apps to APK files.
-15. **APK Sandbox** — run simple APKs in a virtual Android environment (see below).
-16. **Phone Info** — device, battery, RAM/storage, network and sensor specs with
+10. **Wi-Fi Transfer** — HTTP server to share files over Wi‑Fi (see below).
+11. **Samba Server** — browse and stream network shares (see below).
+12. **Text Extract** — on-device OCR (ML Kit) with Copy/Save-to-Notes.
+13. **APK Backup** — back up installed apps to APK files.
+14. **Phone Info** — device, battery, RAM/storage, network and sensor specs with
     "Copy All Info".
+
+**APK Sandbox**, **Retro**, **J2ME**, **PPSSPP** and **Terminal** live in the separate
+**Emulators** group; see **Emulators** below. **VNC Viewer** is no longer a Home-grid tile:
+the pure-Kotlin client remains available for external VNC connections, while the local
+Linux desktop tile was removed.
 
 Most were moved out of the **File Manager ⋮ menu** (Samba, Wi-Fi Transfer, Phone Info,
 APK Backup, Text Extract), out of **System Tools** (Flashlight, Sound
@@ -550,9 +556,10 @@ tool → tap **Connect** in the paired-computers list.
   fully offline, with no PC-side software.
 
 ### VNC Viewer
-Control a remote desktop over raw RFB using a **pure-Kotlin VNC client** (no WebView,
-JNI or third-party GPL/AGPL client). Open **VNC Viewer** from the Tools group, enter the
-host (or tap a saved host), port and optional password, then connect.
+Control an external VNC server over raw RFB using a **pure-Kotlin VNC client** (no WebView,
+JNI or third-party GPL/AGPL client). The local-desktop Home-grid tile was removed; enter the
+host (or tap a saved host), port and optional password in an existing VNC connection, then
+connect.
 
 - **Protocol support** — RFB 3.8 / 3.7 / 3.3, **None** and **VNC Auth** (DES), 32-bit
   true-colour, and the Raw, CopyRect, RRE, Hextile, Zlib and DesktopSize encodings.
@@ -565,10 +572,10 @@ host (or tap a saved host), port and optional password, then connect.
   and reset zoom. A hardware keyboard works while the viewer is focused.
 - **Security** — raw VNC is **not encrypted**; use it on a trusted network or through a
   VPN. The screen says so before you connect.
-- **Local Linux desktop** — the same screen can install and run an **on-device Xfce
-  desktop** inside the app's existing Debian (proot) environment. Tap **Install** on the
-  Linux desktop card (or the prompt when you first open VNC Viewer); the app downloads
-  TigerVNC and Xfce with `apt` (internet and several hundred MB required), then starts a
+- **Local Linux desktop** — the VNC code path can install and run an **on-device Openbox
+  desktop** inside the app's existing Debian (proot) environment, although the Home-grid
+  tile that used to open it was removed. The app downloads TigerVNC, Openbox, tint2, rofi
+  and friends with `apt` (internet and several hundred MB required), then starts a
   loopback-only VNC server on `127.0.0.1:5901`. Use **Start / Open / Stop** on the card;
   **Open** connects the viewer with the saved `This device (Linux Desktop)` host. The
   desktop is owned by a foreground service, so leaving VNC Viewer or the app does not kill
@@ -577,8 +584,14 @@ host (or tap a saved host), port and optional password, then connect.
   The session installs into the same `filesDir/debian-rootfs` used by the Terminal, so
   re-running Terminal setup (a `SETUP_VERSION` bump) can remove it.
 
-### APK Sandbox
-Open **APK Sandbox** from the Tools group to install and run a selected APK inside a
+### Emulators
+The Home grid's **Emulators** group contains **APK Sandbox**, **Retro**, **J2ME**, **PPSSPP**
+and **Terminal** (Terminal last). All game systems are offline-only: NJ-Dialer bundles **no
+ROMs, BIOS/firmware, ISOs, JARs or JADs**; you import your own files with SAF, and every
+delete goes through the Recycle Bin.
+
+#### APK Sandbox
+Open **APK Sandbox** from the Emulators group to install and run a selected APK inside a
 virtual Android environment. The app uses a SAF file picker, previews the APK's app name,
 package and version before installing, copies it into its own cache, installs it into the
 sandbox, and then lists sandboxed apps with **Launch**, **Stop**, **Clear**, **Info**,
@@ -636,6 +649,39 @@ sandbox, and then lists sandboxed apps with **Launch**, **Stop**, **Clear**, **I
 - **Not a security boundary** — sandboxed apps run in separate `:p<number>` processes, but
   they still use NJ-Dialer's UID and Android permissions. Do not treat it as isolation for
   untrusted apps.
+
+#### Retro Games
+A vendored **mGBA** core plays **Game Boy / Game Boy Color / Game Boy Advance** ROMs. You
+import `.gb`, `.gbc` and `.gba` files yourself with SAF; none are bundled, and no BIOS is
+required. The custom Compose gamepad uses libretro button IDs, supports configurable
+size/opacity/offset, and has a compact gameplay ⋮ menu for slots, pause, reset, settings
+and stop. There is no on-screen Back button; the system back gesture closes the game.
+Gameplay stays in portrait because shrinking the game image in landscape made the controls
+too small.
+
+#### J2ME
+A vendored J2ME runtime runs user-imported `.jar` / `.jad` games inside NJ-Dialer's own
+Activity. Imports are copied to app-private storage with a deduplicated `library.json`, and
+deletes go through the Recycle Bin. No games, JARs or JADs are bundled.
+
+#### PPSSPP
+A vendored **libretro PPSSPP** core plays user-imported PSP `.iso`, `.cso`, `.pbp` and `.chd`
+images; no BIOS/firmware or game images are bundled. It is built into a separate
+`libppssppjni.so`, while Retro uses `libnjretro.so`, to avoid duplicate libretro symbols.
+Gameplay forces sensor landscape and restores the previous orientation when you leave; the
+custom Compose gamepad puts the D-pad/analog controls on the left and face buttons on the
+right. There is no on-screen Back button.
+
+PPSSPP defaults to reliable software rendering: `ppsspp_backend=none` and
+`ppsspp_software_rendering=enabled` are set before `loadRom(...)`, and the system/save/content
+paths are set before `init()` so `retro_init()` sees them immediately. Hardware-render
+callbacks are disabled, core logs are bridged to logcat/BBDiag, and surface callbacks are
+applied directly on the caller thread instead of being queued behind the renderer's frame
+loop. **On-device verified 2026-11-27: PSP games play.**
+
+Both Retro and PPSSPP compose the gameplay ⋮ menu **after** the full-screen gamepad overlay
+and ignore gamepad taps in the landscape top-right menu zone, so shoulder-button taps no
+longer steal the menu tap.
 
 ### Web Apps
 - The **Web apps** group on the Home grid holds all web-based apps, keeping the native tools
@@ -736,12 +782,12 @@ A full **Linux terminal** running Debian (aarch64) via **proot**, launched from 
 - **Top bar** — Back · sticky **Ctrl** · title · **Ctrl+C** · **Ctrl+L** · **Ctrl+X** (nano exit) · ⋮ overflow menu (New/Close tab, switch tabs, Show/Hide extra keys, **Terminal Settings**, Reset zoom, Clear screen)
 - **Always dark** — the terminal chrome and menus stay dark even when the app theme is Light; the old white bell flash is gone, while optional bell vibration remains
 - **Terminal settings in the ⋮ menu** — theme, bell vibration, font size and zoom persist and are restored on reopen; change them from ⋮ → Settings (not from the app Settings screen)
-- **Long-press text menu** — Copy / Paste / Share via a floating menu (no system toolbar)
-- **Exit closes app** — typing `exit`, hitting back, or closing the last tab returns to the Tools tab
+- **Long-press text menu** — Copy / Paste via a floating menu (no system toolbar)
+- **Exit closes app** — typing `exit`, hitting back, or closing the last tab returns to the Home grid
 - **Auto-repair** — versioned setup marker forces re-extraction on code changes (no manual data clear needed)
 
 ### Wi-Fi Transfer
-Launched from the **Tools tab**. Hosts a zero-dependency HTTP server
+Launched from the Home grid's **Tools** group. Hosts a zero-dependency HTTP server
 (`http://<wifi-ip>:8870`) so any device on the same
 Wi‑Fi/Hotspot network can upload/download files from any browser — no app required on the
 receiving device. Uses in-app folder/file pickers (no external SAF picker),
@@ -753,7 +799,7 @@ upload is treated as a failure** (the partial file is removed and the transfer i
 reported as failed) instead of silently leaving a truncated file behind.
 
 ### Samba Server
-Launched from the **Tools tab**. Browse network shares (SMB/CIFS via jcifs-ng):
+Launched from the Home grid's **Tools** group. Browse network shares (SMB/CIFS via jcifs-ng):
 connect to servers, list shares/folders,
 download, upload, rename, delete, and create folders. Tapping a media file opens it straight
 in the built-in players **without downloading** — video plays through an in-app localhost
@@ -829,7 +875,7 @@ The app requests CALL/contacts/call-log, SMS read/send, camera, microphone, medi
 (`MANAGE_EXTERNAL_STORAGE`) to enable the File Manager, gallery, and in-app file pickers.
 Samba and **VNC Viewer** need the app to reach your network (the VNC client opens a direct
 TCP connection to the host:port you enter; credentials stay in-app). The optional **local
-Linux desktop** uses a `specialUse` foreground service so the Xfce session can keep running
+Linux desktop** uses a `specialUse` foreground service so the Openbox session can keep running
 after you leave the viewer. **BT Mouse & Keyboard** additionally needs **Nearby devices** on Android 12+
 (`BLUETOOTH_CONNECT` + `BLUETOOTH_ADVERTISE`), requested when you open that tool; the
 rest of the app needs no Bluetooth permission (even "Send via Bluetooth" only hands a file

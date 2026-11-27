@@ -1,7 +1,6 @@
 package com.example.ui.screens.texteditor
 
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.widget.Toast
@@ -35,7 +34,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.FileProvider
 import com.example.ui.MainViewModel
 import com.example.ui.components.AppConfirmDialog
 import com.example.ui.components.AppIcons
@@ -448,30 +446,6 @@ fun TextEditorScreen(
         }
     }
 
-    fun shareActive() {
-        val doc = docs[safeIndex]
-        scope.launch {
-            val bytes = withContext(Dispatchers.IO) {
-                TextFileCodec.encode(doc.text.text, doc.encoding, doc.hadBom, doc.newline)
-            }
-            if (bytes == null) {
-                withContext(Dispatchers.Main) { status = "Unsupported encoding" }
-                return@launch
-            }
-            val cache = withContext(Dispatchers.IO) {
-                val safe = doc.displayName.replace('\\', '_').replace('/', '_')
-                File(context.cacheDir, "shared_${System.currentTimeMillis()}_$safe").apply { writeBytes(bytes) }
-            }
-            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", cache)
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_STREAM, uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            withContext(Dispatchers.Main) { context.startActivity(Intent.createChooser(intent, "Share")) }
-        }
-    }
-
     fun changeEncoding(value: TextEncoding) {
         showEncodingMenu = false
         val index = safeIndex
@@ -648,10 +622,6 @@ fun TextEditorScreen(
                                 goToLineValue = line.toString()
                                 showGoToLine = true
                             }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Share text") },
-                            onClick = { showMenu = false; shareActive() }
                         )
                         DropdownMenuItem(
                             text = { Text("Rename") },

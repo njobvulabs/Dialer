@@ -462,14 +462,6 @@ fun CallHistoryScreen(
                         Toast.makeText(context, "No messaging app available", Toast.LENGTH_SHORT).show()
                     }
                 },
-                onShare = {
-                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_SUBJECT, "Contact: ${contact.name}")
-                        putExtra(Intent.EXTRA_TEXT, "${contact.name}: ${contact.phoneNumber}")
-                    }
-                    context.startActivity(Intent.createChooser(shareIntent, "Share Contact"))
-                },
                 onEdit = {
                     if (contact.id < 0) {
                         Toast.makeText(context, "Device contact - edit in system contacts app", Toast.LENGTH_SHORT).show()

@@ -1,0 +1,34 @@
+set(LIBRETRO ON CACHE BOOL "" FORCE)
+set(USE_FFMPEG ON CACHE BOOL "" FORCE)
+set(USE_SYSTEM_FFMPEG OFF CACHE BOOL "" FORCE)
+set(USE_MINIUPNPC OFF CACHE BOOL "" FORCE)
+set(USE_DISCORD OFF CACHE BOOL "" FORCE)
+set(ATLAS_TOOL OFF CACHE BOOL "" FORCE)
+set(UNITTEST OFF CACHE BOOL "" FORCE)
+set(USE_VULKAN OFF CACHE BOOL "" FORCE)
+set(OPENXR OFF CACHE BOOL "" FORCE)
+set(HEADLESS OFF CACHE BOOL "" FORCE)
+set(SIMULATOR OFF CACHE BOOL "" FORCE)
+set(USE_CLANG_FORMAT OFF CACHE BOOL "" FORCE)
+
+add_compile_definitions(
+  PPSSPP
+  DYNAREC
+  STACK_LINE_READER_BUFFER_SIZE=1024
+  HAVE_DLFCN_H
+  INLINE=inline
+  BAKE_IN_GIT
+  SPIRV_CROSS_EXCEPTIONS_TO_ASSERTIONS
+)
+
+add_subdirectory("${PPSSPP_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/ppsspp" EXCLUDE_FROM_ALL)
+
+set_target_properties(ppsspp_libretro PROPERTIES
+  PREFIX "lib"
+  OUTPUT_NAME "ppssppjni"
+  SUFFIX ".so"
+)
+
+target_sources(ppsspp_libretro PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../PpssppRetroNative.cpp")
+target_include_directories(ppsspp_libretro PRIVATE "${PPSSPP_SOURCE_DIR}/libretro")
+target_link_libraries(ppsspp_libretro android log EGL GLESv2 OpenSLES dl atomic)

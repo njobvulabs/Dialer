@@ -36,7 +36,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import com.example.ui.components.landscapeContentWidth
 import com.example.ui.components.AppIcons
 import com.example.ui.components.FloatingTopBar
@@ -280,25 +279,6 @@ fun RecorderScreen(viewModel: MainViewModel) {
             toast("Could not delete ${file.name}")
         } else {
             recordings = RecorderStore.list(context)
-        }
-    }
-
-    fun shareRecording(file: File) {
-        triggerHaptic()
-        try {
-            val uri: Uri = FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.fileprovider",
-                file
-            )
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "audio/*"
-                putExtra(Intent.EXTRA_STREAM, uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            context.startActivity(Intent.createChooser(intent, "Share Recording"))
-        } catch (e: Exception) {
-            toast("Unable to share file")
         }
     }
 
@@ -660,14 +640,6 @@ fun RecorderScreen(viewModel: MainViewModel) {
                         expanded = menuFile?.absolutePath == file.absolutePath,
                         onDismissRequest = { menuFile = null }
                     ) {
-                        DropdownMenuItem(
-                            text = { Text("Share") },
-                            leadingIcon = { Icon(AppIcons.Share, contentDescription = null) },
-                            onClick = {
-                                menuFile = null
-                                shareRecording(file)
-                            }
-                        )
                         DropdownMenuItem(
                             text = { Text("Delete") },
                             leadingIcon = {

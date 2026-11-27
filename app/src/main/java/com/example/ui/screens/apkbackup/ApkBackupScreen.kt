@@ -311,27 +311,6 @@ fun InstalledAppsSection(viewModel: MainViewModel, modifier: Modifier = Modifier
         }.getOrNull()
     }
 
-    fun shareApk(app: InstalledApp) {
-        scope.launch(Dispatchers.IO) {
-            val targetFile = prepareSharableApk(app)
-            withContext(Dispatchers.Main) {
-                if (targetFile == null || !targetFile.exists()) {
-                    toast("Could not prepare APK for sharing")
-                    return@withContext
-                }
-                runCatching {
-                    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", targetFile)
-                    val intent = Intent(Intent.ACTION_SEND).apply {
-                        type = "application/vnd.android.package-archive"
-                        putExtra(Intent.EXTRA_STREAM, uri)
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    }
-                    context.startActivity(Intent.createChooser(intent, "Share ${app.label} APK"))
-                }.onFailure { toast("Could not share APK") }
-            }
-        }
-    }
-
     fun installApk(app: InstalledApp) {
         scope.launch(Dispatchers.IO) {
             // For split APK apps use a backed-up split set + PackageInstaller so
@@ -797,12 +776,6 @@ fun InstalledAppsSection(viewModel: MainViewModel, modifier: Modifier = Modifier
                         Icon(AppIcons.FolderOpen, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Open Folder")
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    OutlinedButton(onClick = { shareApk(app) }, modifier = Modifier.weight(1f)) {
-                        Icon(AppIcons.Share, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Share APK")
                     }
                 }
                 Spacer(modifier = Modifier.height(8.dp))

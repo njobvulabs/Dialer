@@ -321,14 +321,6 @@ fun ContactsScreen(
                             Toast.makeText(context, "No messaging app available", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    onShare = {
-                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_SUBJECT, "Contact: ${contact.name}")
-                            putExtra(Intent.EXTRA_TEXT, "${contact.name}: ${contact.phoneNumber}")
-                        }
-                        context.startActivity(Intent.createChooser(shareIntent, "Share Contact"))
-                    },
                     onEdit = {
                         if (contact.id < 0) {
                             Toast.makeText(context, "Device contact - edit in system contacts app", Toast.LENGTH_SHORT).show()
@@ -769,7 +761,6 @@ fun ContactDetailsPanel(
     onBack: () -> Unit,
     onCall: (String, Int) -> Unit,
     onMessage: (String) -> Unit,
-    onShare: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -806,9 +797,6 @@ fun ContactDetailsPanel(
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
                 Spacer(modifier = Modifier.weight(1f))
-                IconButton(onClick = onShare) {
-                    Icon(AppIcons.Share, contentDescription = "Share Contact")
-                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
