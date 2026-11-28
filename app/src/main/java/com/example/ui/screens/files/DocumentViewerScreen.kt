@@ -1632,9 +1632,10 @@ fun DocumentReaderDetailView(
         )
     }
 
-    DisposableEffect(odrState.rendered) {
+    val renderedForCleanup = odrState.rendered
+    DisposableEffect(renderedForCleanup) {
         onDispose {
-            odrState.rendered?.cleanup()
+            renderedForCleanup?.cleanup()
         }
     }
 
