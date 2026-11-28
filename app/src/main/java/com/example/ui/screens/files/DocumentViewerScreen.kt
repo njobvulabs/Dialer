@@ -46,6 +46,7 @@ import com.example.ui.components.AppSearchField
 import com.example.ui.theme.AppCornerRadius
 import com.example.ui.components.FloatingTopBar
 import com.example.ui.MainViewModel
+import com.example.util.OdrDocumentRenderer
 import com.example.util.SortOption
 import com.example.util.StorageHelper
 import kotlinx.coroutines.withContext
@@ -69,6 +70,9 @@ import android.graphics.Typeface
 import android.os.ParcelFileDescriptor
 import android.text.StaticLayout
 import android.text.TextPaint
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.Image
@@ -77,7 +81,6 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import android.app.Activity
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -592,7 +595,7 @@ fun DocumentViewerScreen(
             deepDocumentFiles = hit
         } else {
             val found = withContext(Dispatchers.IO) {
-                val extSet = setOf("pdf", "docx", "ppt", "pptx", "xls", "xlsx")
+                val extSet = OdrDocumentRenderer.SUPPORTED_EXTENSIONS
                 val out = mutableListOf<File>()
                 var count = 0
                 fun scan(dir: File, depth: Int) {
@@ -620,7 +623,7 @@ fun DocumentViewerScreen(
         val storageFiles = StorageHelper.listFiles(currentDir).map { it.file }
         val allAccessibleFiles = mediaIndex.map { it.file }
 
-        val documentExtensions = setOf("pdf", "docx", "ppt", "pptx", "xls", "xlsx")
+        val documentExtensions = OdrDocumentRenderer.SUPPORTED_EXTENSIONS
 
         val filtered = (storageFiles + allAccessibleFiles + deepDocumentFiles)
             .distinctBy { it.absolutePath }
@@ -636,7 +639,7 @@ fun DocumentViewerScreen(
             .filter { file ->
                 when (selectedFormatFilter) {
                     "PDFs" -> file.extension.lowercase() == "pdf"
-                    "Office" -> file.extension.lowercase() in listOf("docx", "xlsx", "xls", "pptx", "ppt")
+                    "Office" -> file.extension.lowercase() in OdrDocumentRenderer.SUPPORTED_EXTENSIONS && file.extension.lowercase() != "pdf"
                     else -> true
                 }
             }
@@ -786,7 +789,7 @@ fun DocumentViewerScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Supported: .pdf, .docx, .ppt, .pptx, .xls, .xlsx",
+                            text = "Supported: .pdf, .doc, .docx, .odt, .rtf, .xls, .xlsx, .ods, .csv, .ppt, .pptx, .odp",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -822,9 +825,9 @@ fun DocumentViewerScreen(
 private fun docExtColor(ext: String): Color {
     return when (ext) {
         "PDF" -> Color(0xFFEF4444)
-        "DOCX", "DOC" -> Color(0xFF3B82F6)
-        "XLSX", "XLS", "CSV" -> Color(0xFF10B981)
-        "PPTX", "PPT" -> Color(0xFFF97316)
+        "DOCX", "DOC", "ODT", "RTF" -> Color(0xFF3B82F6)
+        "XLSX", "XLS", "ODS", "CSV" -> Color(0xFF10B981)
+        "PPTX", "PPT", "ODP" -> Color(0xFFF97316)
         "JSON", "XML" -> Color(0xFFF59E0B)
         "TXT", "LOG", "MD", "HTML", "KT", "JAVA" -> Color(0xFF64748B)
         "EPUB" -> Color(0xFFA855F7)
@@ -1510,6 +1513,122 @@ private fun extractPptxSlideText(xml: String): String {
         .joinToString("\n")
 }
 
+private data class OdrRenderState(
+    val rendered: OdrDocumentRenderer.RenderedDocument? = null,
+    val loading: Boolean = false,
+    val error: String? = null
+)
+
+@Suppress("DEPRECATION")
+@Composable
+private fun OdrDocumentView(state: OdrRenderState, backgroundColor: Color) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(backgroundColor),
+        contentAlignment = Alignment.Center
+    ) {
+        when {
+            state.loading -> {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator()
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("Rendering with OpenDocument...", style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+            state.error != null -> {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(24.dp)
+                ) {
+                    Icon(
+                        imageVector = AppIcons.ErrorOutline,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = state.error!!,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+            state.rendered != null -> {
+                val rendered = state.rendered!!
+                AndroidView(
+                    factory = { webViewContext ->
+                        WebView(webViewContext).apply {
+                            settings.javaScriptEnabled = true
+                            settings.domStorageEnabled = true
+                            settings.allowFileAccess = true
+                            settings.allowContentAccess = true
+                            settings.allowFileAccessFromFileURLs = true
+                            settings.allowUniversalAccessFromFileURLs = false
+                            settings.loadWithOverviewMode = true
+                            settings.useWideViewPort = true
+                            settings.setSupportZoom(true)
+                            settings.builtInZoomControls = true
+                            settings.displayZoomControls = false
+                            setBackgroundColor(android.graphics.Color.WHITE)
+                            webViewClient = object : WebViewClient() {
+                                override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
+                                    val scheme = url.substringBefore(":").lowercase(Locale.ROOT)
+                                    return scheme !in setOf("file", "content", "data")
+                                }
+
+                                override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                                    val scheme = request.url.scheme?.lowercase(Locale.ROOT)
+                                    return scheme !in setOf("file", "content", "data")
+                                }
+                            }
+                        }
+                    },
+                    update = { webView ->
+                        if (webView.url != rendered.url) {
+                            webView.loadUrl(rendered.url)
+                        }
+                    },
+                    onRelease = { webView ->
+                        webView.stopLoading()
+                        webView.destroy()
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+    }
+}
+
+private suspend fun nativeDocumentReadable(file: File): Boolean = withContext(Dispatchers.IO) {
+    runCatching<Boolean> {
+        when (file.extension.lowercase()) {
+            "pdf" -> {
+                val pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+                try {
+                    val renderer = PdfRenderer(pfd)
+                    try {
+                        renderer.pageCount > 0
+                    } finally {
+                        renderer.close()
+                    }
+                } finally {
+                    pfd.close()
+                }
+            }
+            "pptx" -> ZipFile(file).use { zip -> zip.getEntry("ppt/presentation.xml") != null }
+            "xlsx" -> parseXlsx(file).rows.isNotEmpty()
+            "docx" -> {
+                val text = readDocxText(file)
+                !text.startsWith("Could not") && !text.startsWith("Error reading")
+            }
+            else -> true
+        }
+    }.getOrDefault(false)
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DocumentReaderDetailView(
@@ -1519,11 +1638,43 @@ fun DocumentReaderDetailView(
     val context = LocalContext.current
     val activity = context as? Activity
 
-    val isPdf = remember(file) { file.extension.lowercase() == "pdf" }
-    val isPptx = remember(file) { file.extension.lowercase() == "pptx" }
-    val isLegacyPpt = remember(file) { file.extension.lowercase() == "ppt" }
-    val isOfficeSheet = remember(file) { file.extension.lowercase() in listOf("xls", "xlsx") }
-    val isTextDoc = remember(file) { file.extension.lowercase() == "docx" }
+    val fileExtension = remember(file) { file.extension.lowercase() }
+    val isPdf = remember(fileExtension) { fileExtension == "pdf" }
+    val isPptx = remember(fileExtension) { fileExtension == "pptx" }
+    val isOfficeSheet = remember(fileExtension) { fileExtension in listOf("xls", "xlsx") }
+    val isTextDoc = remember(fileExtension) { fileExtension == "docx" }
+    val isPrimaryOdr = remember(fileExtension) { fileExtension in OdrDocumentRenderer.PRIMARY_EXTENSIONS }
+    var odrFallbackRequired by remember(file) { mutableStateOf(false) }
+    val useOdr = isPrimaryOdr || odrFallbackRequired
+    var odrState by remember(file) { mutableStateOf(OdrRenderState()) }
+
+    LaunchedEffect(file, fileExtension) {
+        odrFallbackRequired = fileExtension in OdrDocumentRenderer.FALLBACK_EXTENSIONS &&
+            !nativeDocumentReadable(file)
+    }
+
+    LaunchedEffect(file, useOdr) {
+        if (!useOdr) {
+            odrState = OdrRenderState()
+            return@LaunchedEffect
+        }
+        odrState = OdrRenderState(loading = true)
+        val result = withContext(Dispatchers.IO) {
+            runCatching { OdrDocumentRenderer.render(context, file) }
+        }
+        odrState = result.fold(
+            onSuccess = { OdrRenderState(rendered = it) },
+            onFailure = {
+                OdrRenderState(error = it.message ?: "Could not render this document")
+            }
+        )
+    }
+
+    DisposableEffect(odrState.rendered) {
+        onDispose {
+            odrState.rendered?.cleanup()
+        }
+    }
 
     // Immersive Mode State
     var isImmersiveMode by remember { mutableStateOf(false) }
@@ -1548,8 +1699,8 @@ fun DocumentReaderDetailView(
     }
 
     // Document Content State
-    val rawTextContent by produceState(initialValue = "Loading document...", file, isPdf) {
-        value = readDocumentText(file, isPdf)
+    val rawTextContent by produceState(initialValue = "Loading document...", file, isPdf, useOdr) {
+        value = if (useOdr) "" else readDocumentText(file, isPdf)
     }
 
     // Reader Customization State
@@ -1662,10 +1813,10 @@ fun DocumentReaderDetailView(
                             )
                             Text(
                                 text = when {
-                                    isPdf -> "PDF Viewer"
-                                    isPptx -> "PPTX Slides"
-                                    isLegacyPpt -> "Legacy .ppt"
-                                    isOfficeSheet -> "Office Spreadsheet"
+                                    isPdf && !useOdr -> "PDF Viewer"
+                                    isPptx && !useOdr -> "PPTX Slides"
+                                    isOfficeSheet && !useOdr -> "Office Spreadsheet"
+                                    useOdr -> "ODR Renderer"
                                     else -> "${rawTextContent.length} chars • Reader Mode"
                                 },
                                 style = MaterialTheme.typography.labelSmall,
@@ -1687,7 +1838,7 @@ fun DocumentReaderDetailView(
                             )
                         }
 
-                        if (isTextDoc) {
+                        if (isTextDoc && !useOdr) {
                             // TTS Speak Aloud Button
                             IconButton(
                                 onClick = {
@@ -1746,7 +1897,7 @@ fun DocumentReaderDetailView(
             }
         },
         bottomBar = {
-            if (!isImmersiveMode && isTextDoc) {
+            if (!isImmersiveMode && isTextDoc && !useOdr) {
                 Surface(
                     tonalElevation = 8.dp,
                     color = currentTheme.bgColor,
@@ -1809,95 +1960,34 @@ fun DocumentReaderDetailView(
                 .background(currentTheme.bgColor)
         ) {
             when {
-                isPdf -> {
+                isPdf && !useOdr -> {
                     PdfDocumentViewer(
                         file = file,
                         modifier = Modifier.fillMaxSize(),
                         showControls = !isImmersiveMode
                     )
                 }
-                isPptx -> {
+                isPptx && !useOdr -> {
                     PptxDocumentViewer(
                         file = file,
                         modifier = Modifier.fillMaxSize(),
                         showControls = !isImmersiveMode
                     )
                 }
-                isLegacyPpt -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
+                isOfficeSheet && !useOdr && fileExtension == "xlsx" -> {
+                    val gridState = produceState(
+                        initialValue = SpreadsheetGrid(rows = emptyList(), note = "Loading spreadsheet..."),
+                        file
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(24.dp)
-                        ) {
-                            Icon(
-                                imageVector = AppIcons.Slideshow,
-                                contentDescription = null,
-                                modifier = Modifier.size(56.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = "Legacy .ppt isn't supported offline",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Convert the presentation to .pptx to view it here.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center
-                            )
-                        }
+                        value = readSpreadsheet(file)
                     }
+                    SpreadsheetViewer(gridState.value)
                 }
-                isOfficeSheet -> {
-                    val ext = file.extension.lowercase()
-                    when {
-                        ext == "xlsx" -> {
-                            val gridState = produceState(
-                                initialValue = SpreadsheetGrid(rows = emptyList(), note = "Loading spreadsheet..."),
-                                file
-                            ) {
-                                value = readSpreadsheet(file)
-                            }
-                            SpreadsheetViewer(gridState.value)
-                        }
-                        else -> {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier.padding(24.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = AppIcons.GridOn,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(56.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Text(
-                                        text = "Legacy .xls isn't supported offline",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = "Save the workbook as .xlsx to view it here.",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
-                            }
-                        }
-                    }
+                useOdr -> {
+                    OdrDocumentView(
+                        state = odrState,
+                        backgroundColor = currentTheme.bgColor
+                    )
                 }
                 else -> {
                     Column(modifier = Modifier.fillMaxSize()) {

@@ -152,6 +152,7 @@ dependencies {
   implementation(libs.androidx.media3.exoplayer.hls)
   implementation(libs.androidx.media3.datasource.okhttp)
   implementation(libs.commons.compress)
+  implementation(libs.odr)
   // Linux Terminal (PRoot): terminal emulator/view modules + xz rootfs extraction.
   implementation(project(":terminal-view"))
   implementation(project(":j2me"))

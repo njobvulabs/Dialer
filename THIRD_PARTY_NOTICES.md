@@ -37,3 +37,12 @@ included in `app/src/main/cpp/ppsspp/LICENSE.TXT`.
 
 No PSP firmware, BIOS images, ISOs, CSOs, PBPs, or game ROMs are bundled with
 this application.
+
+## OpenDocument.core
+
+Source: https://github.com/opendocument-app/OpenDocument.core
+License: Mozilla Public License 2.0 (https://www.mozilla.org/MPL/2.0/)
+Version: 7.8.0
+
+This application uses the `app.opendocument:odr-core-android` library to render
+Office and OpenDocument files offline inside the document reader.

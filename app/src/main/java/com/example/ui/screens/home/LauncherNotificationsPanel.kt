@@ -47,6 +47,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.service.AudioEngine
 import com.example.service.LauncherNotification
 import com.example.ui.components.AppIcons
 import com.example.ui.theme.AppCornerRadius
@@ -60,6 +61,7 @@ fun LauncherNotificationsPanel(
     onClearAllNotifications: () -> Unit = {},
     onPerformAction: (String, Int, String?) -> Unit,
     onReplyModeChange: (Boolean) -> Unit = {},
+    onOpenPlayer: () -> Unit = {},
     modifier: Modifier = Modifier,
     fillRemaining: Boolean = false
 ) {
@@ -103,6 +105,13 @@ fun LauncherNotificationsPanel(
         contentPadding = PaddingValues(14.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
+            val nowPlayingActive = AudioEngine.active.value
+            if (nowPlayingActive) {
+                NowPlayingCard(
+                    modifier = Modifier.padding(bottom = 8.dp),
+                    onOpen = onOpenPlayer
+                )
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically

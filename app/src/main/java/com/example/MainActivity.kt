@@ -316,7 +316,7 @@ fun MainAppContent(viewModel: MainViewModel) {
             viewModel.lastAppId.value?.takeIf {
                 it !in listOf(
                     "camera", "flashlight", "recorder", "screenrecorder", "calculator", "qrscanner", "btinput", "stopwatch", "tts", "wifiaudio",
-                    "appkiller", "networktools", "mediaserver", "ftpserver", "todo", "converter", "documents", "retro", "j2me", "ppsspp"
+                    "appkiller", "networktools", "mediaserver", "ftpserver", "todo", "converter", "documents", "retro", "j2me", "ppsspp", "linuxvm"
                 ) && !it.startsWith("geckowebapp:")
             }
         )
@@ -1360,7 +1360,8 @@ fun MainAppContent(viewModel: MainViewModel) {
                     .zIndex(10f),
                 openRequest = shadeOpenRequest,
                 initialPage = shadeOpenPage,
-                onShadeOpenChange = { shadeOpen = it }
+                onShadeOpenChange = { shadeOpen = it },
+                onOpenPlayer = { immersiveAppId = "audio" }
             )
         }
     }
@@ -1385,7 +1386,7 @@ private fun ExitAppDialog(
         text = {
             Text(
                 "Stopping everything also closes any running web apps, the " +
-                    "terminal, audio playback and the local Linux desktop."
+                    "terminal and audio playback."
             )
         },
         confirmButton = {

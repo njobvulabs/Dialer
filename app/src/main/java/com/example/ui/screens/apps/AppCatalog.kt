@@ -51,7 +51,7 @@ val TOOLS: List<AppItem> = listOf(
     AppItem("calculator", "Calculator", AppIcons.Calculate, "Quick math & history", "math,sum", "Tools"),
     AppItem("stopwatch", "Stopwatch & Timer", AppIcons.Timer, "Stopwatch, laps & countdown timer", "timer,stopwatch,countdown,lap,clock", "Tools"),
     AppItem("btinput", "BT Mouse & Keyboard", AppIcons.Mouse, "Use this phone as a PC mouse & keyboard", "bluetooth,hid,mouse,keyboard,pc,input,trackpad", "Tools"),
-    AppItem("vnc", "VNC Viewer", AppIcons.DesktopWindows, "Remote desktops + local Linux desktop", "remote,desktop,rfb,pc,screen,linux,openbox,vnc,local", "Tools"),
+    AppItem("vnc", "VNC Viewer", AppIcons.DesktopWindows, "Connect to external VNC servers", "remote,desktop,rfb,pc,screen,vnc", "Tools"),
     
     AppItem("bttransfer", "Bluetooth Transfer", AppIcons.Bluetooth, "Send files to a paired phone", "bluetooth,share,send,receive,files,transfer,paired", "Tools"),
     AppItem("wifishare", "Wi-Fi Transfer", AppIcons.Wifi, "Share files over Wi-Fi", "share,network", "Tools"),

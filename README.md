@@ -261,8 +261,8 @@ typing `exit` or closing the last tab returns to the launcher.
 None and VNC Auth, Raw, CopyRect, RRE, Hextile, Zlib, and DesktopSize. Saved passwords are
 encrypted with the Android Keystore. Touch controls include pointer move, tap/right-tap, scroll,
 pinch zoom, special keys, and text sending. Raw VNC is not encrypted; use a trusted network or
-VPN. The local Openbox Linux desktop code path remains, but the Home-grid tile was removed. It
-runs inside the shared Debian rootfs and is owned by a foreground service.
+VPN. The local Openbox Linux desktop/VM was removed permanently; VNC Viewer connects only to
+external VNC servers.
 
 ## Privacy and permissions
 

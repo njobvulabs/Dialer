@@ -12,7 +12,6 @@ import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -31,16 +30,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -57,7 +52,6 @@ import com.example.ui.MainViewModel
 import com.example.ui.components.AppContentMaxWidth
 import com.example.ui.components.AppIcons
 import com.example.service.AudioEngine
-import com.example.service.AudioPlaybackService
 import com.example.ui.components.AppSearchField
 import com.example.ui.screens.apps.AppItem
 import com.example.ui.screens.apps.LAUNCHER_SECTIONS
@@ -65,10 +59,7 @@ import com.example.ui.screens.webapp.CustomWebApps
 import com.example.ui.theme.AppCornerRadius
 import com.example.util.ContactNumbers
 import com.example.util.ExpressionEval
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.repeatOnLifecycle
 import com.example.util.rememberSavedGridState
-import kotlinx.coroutines.delay
 
 /**
  * The launcher-style landing screen. The clock/date header, search toggle, missed/
@@ -685,148 +676,6 @@ private fun SearchActionResult(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-            }
-        }
-    }
-}
-
-/** Compact transport card for the track the AudioEngine is holding. */
-@Composable
-private fun NowPlayingCard(
-    modifier: Modifier = Modifier,
-    onOpen: () -> Unit
-) {
-    val context = LocalContext.current
-    val title = AudioEngine.title.value
-    val artist = AudioEngine.artist.value
-    val playing = AudioEngine.playing.value
-    val artwork = AudioEngine.artworkState.value
-    val duration = AudioEngine.durationMs.value
-    val image = remember(artwork) { artwork?.asImageBitmap() }
-    val onPrev = AudioEngine.onPrev ?: { AudioEngine.stepDefault(-1) }
-    val onNext = AudioEngine.onNext ?: { AudioEngine.stepDefault(1) }
-    val onToggle = AudioEngine.onToggle ?: { AudioEngine.toggleDefault() }
-    var positionMs by remember { mutableLongStateOf(0L) }
-    var barWidth by remember { mutableIntStateOf(1) }
-
-    val lifecycleOwner = LocalLifecycleOwner.current
-    LaunchedEffect(playing, lifecycleOwner) {
-        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            while (true) {
-                positionMs = AudioEngine.positionMs()
-                delay(if (playing) 500L else 2_000L)
-            }
-        }
-    }
-
-    val progress = if (duration > 0L) {
-        (positionMs.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
-    } else 0f
-
-    GlassPanel(
-        modifier = modifier.fillMaxWidth(),
-        shape = AppCornerRadius.md,
-        elevation = 3.dp
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 12.dp, end = 4.dp, top = 10.dp)
-                    .clickable(onClick = onOpen),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(AppCornerRadius.sm)
-                        .background(MaterialTheme.colorScheme.secondaryContainer),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (image != null) {
-                        Image(
-                            bitmap = image,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    } else {
-                        Icon(
-                            AppIcons.MusicNote,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    }
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        title.ifBlank { "Now playing" },
-                        style = MaterialTheme.typography.titleSmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (artist.isNotBlank()) {
-                        Text(
-                            artist,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-                IconButton(onClick = onPrev, modifier = Modifier.size(36.dp)) {
-                    Icon(AppIcons.SkipPrevious, contentDescription = "Previous track")
-                }
-                IconButton(onClick = onToggle, modifier = Modifier.size(40.dp)) {
-                    Icon(
-                        if (playing) AppIcons.Pause else AppIcons.PlayArrow,
-                        contentDescription = if (playing) "Pause" else "Play"
-                    )
-                }
-                IconButton(onClick = onNext, modifier = Modifier.size(36.dp)) {
-                    Icon(AppIcons.SkipNext, contentDescription = "Next track")
-                }
-                IconButton(
-                    onClick = {
-                        context.startService(
-                            AudioPlaybackService.newIntent(
-                                context,
-                                AudioPlaybackService.ACTION_STOP
-                            )
-                        )
-                    },
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Icon(AppIcons.Close, contentDescription = "Stop playback")
-                }
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(18.dp)
-                    .onSizeChanged { barWidth = it.width.coerceAtLeast(1) }
-                    .pointerInput(duration) {
-                        detectTapGestures { offset ->
-                            if (duration > 0L) {
-                                val fraction = (offset.x / barWidth).coerceIn(0f, 1f)
-                                AudioEngine.seekTo((duration * fraction).toLong())
-                                positionMs = AudioEngine.positionMs()
-                            }
-                        }
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(2.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant
-                )
             }
         }
     }

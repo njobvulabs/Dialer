@@ -73,7 +73,8 @@ fun LauncherShadeOverlay(
     openRequest: Int = 0,
     initialPage: Int = 0,
     modifier: Modifier = Modifier,
-    onShadeOpenChange: (Boolean) -> Unit = {}
+    onShadeOpenChange: (Boolean) -> Unit = {},
+    onOpenPlayer: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
     var shadePage by remember { mutableStateOf(initialPage.coerceIn(0, 1)) }
@@ -298,6 +299,10 @@ fun LauncherShadeOverlay(
                                 viewModel.actionLauncherNotification(key, index, input)
                             },
                             onReplyModeChange = { notificationReplyOpen = it },
+                            onOpenPlayer = {
+                                dismiss()
+                                onOpenPlayer()
+                            },
                             fillRemaining = true,
                             modifier = Modifier
                                 .fillMaxWidth()
