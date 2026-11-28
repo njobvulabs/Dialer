@@ -33,6 +33,9 @@ object OdrDocumentRenderer {
 
     val SUPPORTED_EXTENSIONS = PRIMARY_EXTENSIONS + FALLBACK_EXTENSIONS
 
+    const val SUPPORTED_LABEL =
+        ".pdf, .doc, .docx, .odt, .rtf, .xls, .xlsx, .ods, .csv, .ppt, .pptx, .odp"
+
     private const val MAX_CACHE_ENTRIES = 6
     private const val MAX_SOURCE_BYTES = 512L * 1024L * 1024L
 

@@ -789,7 +789,7 @@ fun DocumentViewerScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Supported: .pdf, .doc, .docx, .odt, .rtf, .xls, .xlsx, .ods, .csv, .ppt, .pptx, .odp",
+                            text = "Supported: ${OdrDocumentRenderer.SUPPORTED_LABEL}",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -1602,33 +1602,6 @@ private fun OdrDocumentView(state: OdrRenderState, backgroundColor: Color) {
     }
 }
 
-private suspend fun nativeDocumentReadable(file: File): Boolean = withContext(Dispatchers.IO) {
-    runCatching<Boolean> {
-        when (file.extension.lowercase()) {
-            "pdf" -> {
-                val pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
-                try {
-                    val renderer = PdfRenderer(pfd)
-                    try {
-                        renderer.pageCount > 0
-                    } finally {
-                        renderer.close()
-                    }
-                } finally {
-                    pfd.close()
-                }
-            }
-            "pptx" -> ZipFile(file).use { zip -> zip.getEntry("ppt/presentation.xml") != null }
-            "xlsx" -> parseXlsx(file).rows.isNotEmpty()
-            "docx" -> {
-                val text = readDocxText(file)
-                !text.startsWith("Could not") && !text.startsWith("Error reading")
-            }
-            else -> true
-        }
-    }.getOrDefault(false)
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DocumentReaderDetailView(
@@ -1636,26 +1609,15 @@ fun DocumentReaderDetailView(
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
-    val activity = context as? Activity
-
     val fileExtension = remember(file) { file.extension.lowercase() }
-    val isPdf = remember(fileExtension) { fileExtension == "pdf" }
-    val isPptx = remember(fileExtension) { fileExtension == "pptx" }
-    val isOfficeSheet = remember(fileExtension) { fileExtension in listOf("xls", "xlsx") }
-    val isTextDoc = remember(fileExtension) { fileExtension == "docx" }
-    val isPrimaryOdr = remember(fileExtension) { fileExtension in OdrDocumentRenderer.PRIMARY_EXTENSIONS }
-    var odrFallbackRequired by remember(file) { mutableStateOf(false) }
-    val useOdr = isPrimaryOdr || odrFallbackRequired
+    val supported = remember(fileExtension) { fileExtension in OdrDocumentRenderer.SUPPORTED_EXTENSIONS }
+    var renderToken by remember(file) { mutableIntStateOf(0) }
     var odrState by remember(file) { mutableStateOf(OdrRenderState()) }
+    var chromeVisible by remember(file) { mutableStateOf(true) }
 
-    LaunchedEffect(file, fileExtension) {
-        odrFallbackRequired = fileExtension in OdrDocumentRenderer.FALLBACK_EXTENSIONS &&
-            !nativeDocumentReadable(file)
-    }
-
-    LaunchedEffect(file, useOdr) {
-        if (!useOdr) {
-            odrState = OdrRenderState()
+    LaunchedEffect(file, supported, renderToken) {
+        if (!supported) {
+            odrState = OdrRenderState(error = "Unsupported document format: .$fileExtension")
             return@LaunchedEffect
         }
         odrState = OdrRenderState(loading = true)
@@ -1676,413 +1638,60 @@ fun DocumentReaderDetailView(
         }
     }
 
-    // Immersive Mode State
-    var isImmersiveMode by remember { mutableStateOf(false) }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        OdrDocumentView(
+            state = odrState,
+            backgroundColor = MaterialTheme.colorScheme.background
+        )
 
-    // Handle system bars for immersive mode
-    DisposableEffect(isImmersiveMode) {
-        val window = activity?.window
-        if (window != null) {
-            val insetsController = WindowCompat.getInsetsController(window, window.decorView)
-            if (isImmersiveMode) {
-                insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                insetsController.hide(WindowInsetsCompat.Type.systemBars())
-            } else {
-                insetsController.show(WindowInsetsCompat.Type.systemBars())
-            }
-            onDispose {
-                insetsController.show(WindowInsetsCompat.Type.systemBars())
+        if (chromeVisible) {
+            FloatingTopBar {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onClose) {
+                        Icon(AppIcons.ArrowBack, contentDescription = "Back")
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = file.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = if (supported) {
+                                "OpenDocument renderer • ${fileExtension.uppercase()}"
+                            } else {
+                                "Unsupported format • .$fileExtension"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(onClick = { renderToken++ }) {
+                        Icon(AppIcons.Refresh, contentDescription = "Reload document")
+                    }
+                    IconButton(onClick = { chromeVisible = false }) {
+                        Icon(AppIcons.Fullscreen, contentDescription = "Hide document controls")
+                    }
+                }
             }
         } else {
-            onDispose {}
-        }
-    }
-
-    // Document Content State
-    val rawTextContent by produceState(initialValue = "Loading document...", file, isPdf, useOdr) {
-        value = if (useOdr) "" else readDocumentText(file, isPdf)
-    }
-
-    // Reader Customization State
-    var fontSizeSp by remember { mutableFloatStateOf(16f) }
-    var currentTheme by remember { mutableStateOf(ReaderTheme.LIGHT) }
-    var fontFamilyChoice by remember { mutableStateOf("Sans") } // Sans, Serif, Monospace
-    var lineSpacingMultiplier by remember { mutableFloatStateOf(1.3f) }
-
-    // Find in Document State
-    var isSearchActive by remember { mutableStateOf(false) }
-    var searchKeyword by remember { mutableStateOf("") }
-
-    // Persistent Text Document Scroll Position
-    val readerPrefs = remember(file) { context.getSharedPreferences("reader_prefs", Context.MODE_PRIVATE) }
-    val initialTextScroll = remember(file) { readerPrefs.getInt("doc_scroll_${file.absolutePath}", 0) }
-    val scrollState = rememberScrollState(initial = initialTextScroll)
-
-    // Save text scroll offset when user scrolls
-    LaunchedEffect(scrollState.value) {
-        if (scrollState.value > 0) {
-            readerPrefs.edit().putInt("doc_scroll_${file.absolutePath}", scrollState.value).apply()
-        }
-    }
-
-    // Match Index Tracking & Highlighting
-    var currentMatchIndex by remember { mutableIntStateOf(0) }
-    val matchIndices = remember(rawTextContent, searchKeyword) {
-        if (searchKeyword.length < 2) emptyList<Int>()
-        else {
-            val list = mutableListOf<Int>()
-            var idx = rawTextContent.indexOf(searchKeyword, ignoreCase = true)
-            while (idx >= 0) {
-                list.add(idx)
-                idx = rawTextContent.indexOf(searchKeyword, idx + searchKeyword.length, ignoreCase = true)
-            }
-            list
-        }
-    }
-
-    val highlightedAnnotatedText = remember(rawTextContent, searchKeyword) {
-        if (searchKeyword.length < 2) AnnotatedString(rawTextContent)
-        else {
-            buildAnnotatedString {
-                var start = 0
-                while (start < rawTextContent.length) {
-                    val index = rawTextContent.indexOf(searchKeyword, start, ignoreCase = true)
-                    if (index < 0) {
-                        append(rawTextContent.substring(start))
-                        break
-                    }
-                    append(rawTextContent.substring(start, index))
-                    withStyle(style = SpanStyle(background = Color(0xFFFFD54F), color = Color.Black, fontWeight = FontWeight.Bold)) {
-                        append(rawTextContent.substring(index, index + searchKeyword.length))
-                    }
-                    start = index + searchKeyword.length
-                }
-            }
-        }
-    }
-
-    // Coroutine Scope for Scroll Jumps
-    val coroutineScope = rememberCoroutineScope()
-
-    // Text To Speech State (engine created lazily on first Speak tap)
-    var ttsEngine by remember { mutableStateOf<TextToSpeech?>(null) }
-    var isTtsSpeaking by remember { mutableStateOf(false) }
-    var pendingTtsText by remember { mutableStateOf<String?>(null) }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            ttsEngine?.stop()
-            ttsEngine?.shutdown()
-        }
-    }
-
-    // Auto Scroll State
-    var isAutoScrolling by remember { mutableStateOf(false) }
-
-    // Auto Scroll Coroutine
-    LaunchedEffect(isAutoScrolling) {
-        while (isAutoScrolling) {
-            if (scrollState.value < scrollState.maxValue) {
-                scrollState.scrollTo(scrollState.value + 4)
-                delay(50)
-            } else {
-                isAutoScrolling = false
-            }
-        }
-    }
-
-    val selectedFontFamily = remember(fontFamilyChoice) {
-        when (fontFamilyChoice) {
-            "Serif" -> FontFamily.Serif
-            "Monospace" -> FontFamily.Monospace
-            else -> FontFamily.Default
-        }
-    }
-
-    Scaffold(
-        topBar = {
-            if (!isImmersiveMode) {
-                TopAppBar(
-                    title = {
-                        Column {
-                            Text(
-                                text = file.name,
-                                style = MaterialTheme.typography.titleMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = when {
-                                    isPdf && !useOdr -> "PDF Viewer"
-                                    isPptx && !useOdr -> "PPTX Slides"
-                                    isOfficeSheet && !useOdr -> "Office Spreadsheet"
-                                    useOdr -> "ODR Renderer"
-                                    else -> "${rawTextContent.length} chars • Reader Mode"
-                                },
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onClose) {
-                            Icon(AppIcons.ArrowBack, contentDescription = "Back")
-                        }
-                    },
-                    actions = {
-                        // Immersive Mode Toggle
-                        IconButton(onClick = { isImmersiveMode = true }) {
-                            Icon(
-                                imageVector = AppIcons.Fullscreen,
-                                contentDescription = "Enter Immersive Mode"
-                            )
-                        }
-
-                        if (isTextDoc && !useOdr) {
-                            // TTS Speak Aloud Button
-                            IconButton(
-                                onClick = {
-                                    val existing = ttsEngine
-                                    val speechChunk = rawTextContent.take(2000)
-                                    if (existing != null && isTtsSpeaking) {
-                                        existing.stop()
-                                        isTtsSpeaking = false
-                                    } else if (existing != null) {
-                                        existing.language = Locale.US
-                                        existing.speak(speechChunk, TextToSpeech.QUEUE_FLUSH, null, "doc_tts")
-                                        isTtsSpeaking = true
-                                        Toast.makeText(context, "Reading document aloud...", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        // Lazy TextToSpeech init — engine only created when Speak is tapped
-                                        pendingTtsText = speechChunk
-                                        var createdTts: TextToSpeech? = null
-                                        createdTts = TextToSpeech(context) { status ->
-                                            if (status == TextToSpeech.SUCCESS) {
-                                                pendingTtsText?.let { chunk ->
-                                                    createdTts!!.language = Locale.US
-                                                    createdTts!!.speak(chunk, TextToSpeech.QUEUE_FLUSH, null, "doc_tts")
-                                                    isTtsSpeaking = true
-                                                    Toast.makeText(context, "Reading document aloud...", Toast.LENGTH_SHORT).show()
-                                                }
-                                                pendingTtsText = null
-                                            }
-                                        }
-                                        ttsEngine = createdTts
-                                    }
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = if (isTtsSpeaking) AppIcons.VolumeOff else AppIcons.VolumeUp,
-                                    contentDescription = "Speak Aloud",
-                                    tint = if (isTtsSpeaking) MaterialTheme.colorScheme.primary else LocalContentColor.current
-                                )
-                            }
-
-                            // Auto-scroll toggle
-                            IconButton(onClick = { isAutoScrolling = !isAutoScrolling }) {
-                                Icon(
-                                    imageVector = if (isAutoScrolling) AppIcons.PauseCircle else AppIcons.PlayCircle,
-                                    contentDescription = "Auto Scroll",
-                                    tint = if (isAutoScrolling) MaterialTheme.colorScheme.primary else LocalContentColor.current
-                                )
-                            }
-
-                            // Search toggle
-                            IconButton(onClick = { isSearchActive = !isSearchActive }) {
-                                Icon(AppIcons.Search, contentDescription = "Find in text")
-                            }
-                        }
-                    }
-                )
-            }
-        },
-        bottomBar = {
-            if (!isImmersiveMode && isTextDoc && !useOdr) {
-                Surface(
-                    tonalElevation = 8.dp,
-                    color = currentTheme.bgColor,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Size: ", style = MaterialTheme.typography.labelMedium, color = currentTheme.textColor)
-                                IconButton(onClick = { fontSizeSp = (fontSizeSp - 2f).coerceAtLeast(10f) }) {
-                                    Icon(AppIcons.Remove, contentDescription = "Zoom Out", tint = currentTheme.textColor)
-                                }
-                                Text("${fontSizeSp.toInt()}sp", style = MaterialTheme.typography.bodyMedium, color = currentTheme.textColor)
-                                IconButton(onClick = { fontSizeSp = (fontSizeSp + 2f).coerceAtMost(36f) }) {
-                                    Icon(AppIcons.Add, contentDescription = "Zoom In", tint = currentTheme.textColor)
-                                }
-                            }
-
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                ReaderTheme.values().forEach { theme ->
-                                    Surface(
-                                        color = theme.bgColor,
-                                        shape = CircleShape,
-                                        border = if (currentTheme == theme) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
-                                        modifier = Modifier
-                                            .size(28.dp)
-                                            .clickable { currentTheme = theme }
-                                    ) {}
-                                }
-                            }
-                        }
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            listOf("Sans", "Serif", "Monospace").forEach { family ->
-                                FilterChip(
-                                    selected = fontFamilyChoice == family,
-                                    onClick = { fontFamilyChoice = family },
-                                    label = { Text(family, style = MaterialTheme.typography.labelSmall) }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(if (isImmersiveMode) PaddingValues(0.dp) else innerPadding)
-                .background(currentTheme.bgColor)
-        ) {
-            when {
-                isPdf && !useOdr -> {
-                    PdfDocumentViewer(
-                        file = file,
-                        modifier = Modifier.fillMaxSize(),
-                        showControls = !isImmersiveMode
-                    )
-                }
-                isPptx && !useOdr -> {
-                    PptxDocumentViewer(
-                        file = file,
-                        modifier = Modifier.fillMaxSize(),
-                        showControls = !isImmersiveMode
-                    )
-                }
-                isOfficeSheet && !useOdr && fileExtension == "xlsx" -> {
-                    val gridState = produceState(
-                        initialValue = SpreadsheetGrid(rows = emptyList(), note = "Loading spreadsheet..."),
-                        file
-                    ) {
-                        value = readSpreadsheet(file)
-                    }
-                    SpreadsheetViewer(gridState.value)
-                }
-                useOdr -> {
-                    OdrDocumentView(
-                        state = odrState,
-                        backgroundColor = currentTheme.bgColor
-                    )
-                }
-                else -> {
-                    Column(modifier = Modifier.fillMaxSize()) {
-                    AnimatedVisibility(visible = isSearchActive && !isImmersiveMode) {
-                        Surface(
-                            color = currentTheme.bgColor,
-                            tonalElevation = 4.dp,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                AppSearchField(
-                                    value = searchKeyword,
-                                    onValueChange = {
-                                        searchKeyword = it
-                                        currentMatchIndex = 0
-                                    },
-                                    placeholder = "Find word or sentence...",
-                                    onClose = { isSearchActive = false },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                if (matchIndices.isNotEmpty()) {
-                                    Text(
-                                        text = "${currentMatchIndex + 1}/${matchIndices.size}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        modifier = Modifier.padding(horizontal = 6.dp)
-                                    )
-                                    IconButton(
-                                        onClick = {
-                                            if (currentMatchIndex > 0) {
-                                                currentMatchIndex--
-                                                val charPos = matchIndices[currentMatchIndex]
-                                                val scrollRatio = charPos.toFloat() / rawTextContent.length.coerceAtLeast(1)
-                                                coroutineScope.launch {
-                                                    scrollState.animateScrollTo((scrollState.maxValue * scrollRatio).toInt())
-                                                }
-                                            }
-                                        }
-                                    ) {
-                                        Icon(AppIcons.KeyboardArrowUp, contentDescription = "Previous Match")
-                                    }
-                                    IconButton(
-                                        onClick = {
-                                            if (currentMatchIndex < matchIndices.size - 1) {
-                                                currentMatchIndex++
-                                                val charPos = matchIndices[currentMatchIndex]
-                                                val scrollRatio = charPos.toFloat() / rawTextContent.length.coerceAtLeast(1)
-                                                coroutineScope.launch {
-                                                    scrollState.animateScrollTo((scrollState.maxValue * scrollRatio).toInt())
-                                                }
-                                            }
-                                        }
-                                    ) {
-                                        Icon(AppIcons.KeyboardArrowDown, contentDescription = "Next Match")
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 16.dp, vertical = 12.dp)
-                            .verticalScroll(scrollState)
-                    ) {
-                        SelectionContainer {
-                            Text(
-                                text = highlightedAnnotatedText,
-                                fontSize = fontSizeSp.sp,
-                                fontFamily = selectedFontFamily,
-                                lineHeight = (fontSizeSp * lineSpacingMultiplier).sp,
-                                color = currentTheme.textColor,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                }
-            }
-            }
-
-            // Floating Exit Immersive Mode Button
-            if (isImmersiveMode) {
-                SmallFloatingActionButton(
-                    onClick = { isImmersiveMode = false },
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(16.dp)
-                ) {
-                    Icon(AppIcons.FullscreenExit, contentDescription = "Exit Immersive Mode")
-                }
+            SmallFloatingActionButton(
+                onClick = { chromeVisible = true },
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+            ) {
+                Icon(AppIcons.FullscreenExit, contentDescription = "Show document controls")
             }
         }
     }

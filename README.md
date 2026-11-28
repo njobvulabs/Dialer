@@ -116,10 +116,10 @@ can restore, delete forever, or empty the bin. Undo appears immediately after a 
 trashing fails, the original file is left in place and a message is shown.
 
 **Vault** is a PIN-protected encrypted file area. **Downloads** gathers files from app folders
-such as Download, Pictures, Movies, Music, Notes, and Tasks. The **Document Reader** opens PDF,
-office, text, and ebook files from the File Manager. PPTX uses a native high-resolution raster
-path so slide text stays sharp. Files can also be converted from video to M4A audio or handed to
-the system Bluetooth sender.
+such as Download, Pictures, Movies, Music, Notes, and Tasks. The **Document Reader** opens all
+supported PDF, office, text, and ebook formats from the File Manager through the offline
+OpenDocument renderer. Files can also be converted from video to M4A audio or handed to the
+system Bluetooth sender.
 
 ## Media
 
