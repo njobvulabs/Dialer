@@ -1,6 +1,5 @@
 package com.example.util
 
-import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
 import android.net.wifi.WifiInfo
@@ -22,7 +21,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
-import com.example.ui.components.AppIcons
 /**
  * A lightweight, standalone HTTP server for local Wi-Fi / Hotspot file sharing.
  */

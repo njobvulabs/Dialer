@@ -2,7 +2,6 @@ package com.example
 
 import android.Manifest
 import android.app.Activity
-import com.example.ui.components.AppIcons
 import com.example.util.DownloadBridge
 import android.content.Context
 import android.content.Intent
@@ -11,7 +10,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
-import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -25,17 +23,13 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
-import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalWindowInfo
-import androidx.compose.ui.platform.ViewCompositionStrategy
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
@@ -48,7 +42,6 @@ import androidx.lifecycle.lifecycleScope
 import com.example.data.db.CallType
 import com.example.service.CustomInCallService
 import com.example.service.HidOverlayController
-import com.example.service.HidPadTheme
 import com.example.ui.MainViewModel
 import com.example.ui.screens.home.LauncherPager
 import com.example.ui.screens.home.LauncherShadeOverlay
@@ -83,7 +76,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import com.example.util.SystemCallHelper
-import com.example.service.AudioEngine
 import com.example.util.AssistantActions
 import com.example.util.TempCleanup
 import com.google.accompanist.permissions.ExperimentalPermissionsApi

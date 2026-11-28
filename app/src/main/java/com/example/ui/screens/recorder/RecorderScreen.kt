@@ -36,9 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import com.example.ui.components.landscapeContentWidth
 import com.example.ui.components.AppIcons
-import com.example.ui.components.FloatingTopBar
 import com.example.ui.components.AppSearchField
 import com.example.ui.theme.AppCornerRadius
 import com.example.ui.MainViewModel

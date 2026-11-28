@@ -1,8 +1,0 @@
-com.termux.view.terminal-view-pngs-0 /home/njobvu/.sambashare/nj-dialer/terminal-view/build/generated/res/pngs/release
-com.termux.view.terminal-view-updated_navigation_xml-1 /home/njobvu/.sambashare/nj-dialer/terminal-view/build/generated/updated_navigation_xml/release
-com.termux.view.terminal-view-mergeReleaseResources-2 /home/njobvu/.sambashare/nj-dialer/terminal-view/build/intermediates/incremental/release/mergeReleaseResources/merged.dir
-com.termux.view.terminal-view-mergeReleaseResources-3 /home/njobvu/.sambashare/nj-dialer/terminal-view/build/intermediates/incremental/release/mergeReleaseResources/stripped.dir
-com.termux.view.terminal-view-release-4 /home/njobvu/.sambashare/nj-dialer/terminal-view/build/intermediates/merged_res/release/mergeReleaseResources
-com.termux.view.terminal-view-release-5 /home/njobvu/.sambashare/nj-dialer/terminal-view/build/intermediates/packaged_res/release/packageReleaseResources
-com.termux.view.terminal-view-main-6 /home/njobvu/.sambashare/nj-dialer/terminal-view/src/main/res
-com.termux.view.terminal-view-release-7 /home/njobvu/.sambashare/nj-dialer/terminal-view/src/release/res

@@ -31,7 +31,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import android.content.Context
-import androidx.compose.ui.unit.sp
 import com.example.ui.MainViewModel
 import com.example.ui.components.AppIcons
 import com.example.ui.components.FloatingTopBar

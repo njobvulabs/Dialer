@@ -10,6 +10,7 @@ Multi-module Android app (**Jetpack Compose**, Kotlin) tracking `main` with git 
   - Vendored BlackBox native code is built as part of `:app:assembleDebug`; to check that module alone use `gradle :Bcore:compileDebugJavaWithJavac --offline`.
   - `ANDROID_HOME=/opt/android-sdk` is already set.
 - Debug APK → `app/build/outputs/apk/debug/app-debug.apk`.
+- Generated `terminal-emulator/build/` and `terminal-view/build/` outputs are intentionally untracked; `.gitignore` already has `build/`, do not re-add those generated files.
 - Debug signing uses the committed `debug.keystore` (alias `androiddebugkey` / password `android`). Release signing needs env vars `KEYSTORE_PATH`, `STORE_PASSWORD`, `KEY_PASSWORD` (see `app/build.gradle.kts`).
 - **Release builds are minified/shrunk** (`isMinifyEnabled = true`, `isShrinkResources = true`). `proguard-rules.pro` keeps GeckoView, yt-dlp, vendored BlackBox APIs, `@JavascriptInterface` methods, Room DB implementations, native methods and the persisted `CallType` enum. This R8 configuration has **not** been runtime-validated on-device; treat a release-only crash as a keep-rule regression first.
 - **Do not remove `kotlin.compiler.execution.strategy=daemon`** from `gradle.properties`: `in-process` breaks under Gradle 9.7 (Compose compiler plugin `AbstractMethodError`).

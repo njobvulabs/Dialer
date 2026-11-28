@@ -20,7 +20,6 @@ import com.example.data.db.AppDatabase
 import com.example.data.db.CallLogEntity
 import com.example.data.db.CallType
 import com.example.data.repository.AppRepository
-import com.example.ui.components.AppIcons
 import com.example.util.CallRecorder
 import com.example.util.CallScreening
 import com.example.util.ContactNumbers

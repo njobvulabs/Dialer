@@ -2,7 +2,6 @@ package com.example.util
 
 import android.content.Context
 import org.json.JSONArray
-import org.json.JSONObject
 
 object SmsTemplates {
     private const val PREFS = "app_settings"

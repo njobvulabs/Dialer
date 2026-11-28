@@ -2,7 +2,6 @@ package com.example.util
 
 import android.content.Context
 import com.example.data.repository.AppRepository
-import com.example.ui.components.AppIcons
 
 sealed class ScreeningDecision {
     /** Let the call ring normally. */

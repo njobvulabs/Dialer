@@ -1,10 +1,7 @@
 package com.example.ui.screens.files
 
 import android.content.Context
-import android.speech.tts.TextToSpeech
-import android.widget.Toast
 import androidx.compose.animation.*
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,8 +15,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
 
@@ -33,7 +28,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -51,7 +45,6 @@ import com.example.util.SortOption
 import com.example.util.StorageHelper
 import kotlinx.coroutines.withContext
 import java.util.zip.ZipFile
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.viewinterop.AndroidView
 import java.io.File
@@ -76,22 +69,13 @@ import android.webkit.WebViewClient
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.Image
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
-import android.app.Activity
 import kotlinx.coroutines.Dispatchers
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -100,7 +84,6 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.unit.IntSize
-import android.graphics.Matrix
 
 enum class ReaderTheme(val label: String, val bgColor: Color, val textColor: Color) {
     LIGHT("Clean Light", Color(0xFFF8FAFC), Color(0xFF0F172A)),
@@ -619,38 +602,40 @@ fun DocumentViewerScreen(
     }
 
     // Scan documents across storage (mediaIndex built off the main thread)
-    val discoveredDocuments = remember(currentDir, searchQuery, selectedFormatFilter, mediaIndex, sortOption, sortAscending, deepDocumentFiles) {
-        val storageFiles = StorageHelper.listFiles(currentDir).map { it.file }
-        val allAccessibleFiles = mediaIndex.map { it.file }
+    val discoveredDocuments by produceState(emptyList<File>(), currentDir, searchQuery, selectedFormatFilter, mediaIndex, sortOption, sortAscending, deepDocumentFiles) {
+        value = withContext(Dispatchers.IO) {
+            val storageFiles = StorageHelper.listFiles(currentDir).map { it.file }
+            val allAccessibleFiles = mediaIndex.map { it.file }
 
-        val documentExtensions = OdrDocumentRenderer.SUPPORTED_EXTENSIONS
+            val documentExtensions = OdrDocumentRenderer.SUPPORTED_EXTENSIONS
 
-        val filtered = (storageFiles + allAccessibleFiles + deepDocumentFiles)
-            .distinctBy { it.absolutePath }
-            .filter { file ->
-                file.isFile && (
-                    file.extension.lowercase() in documentExtensions ||
-                    StorageHelper.getMimeType(file).contains("pdf")
-                )
-            }
-            .filter { file ->
-                if (searchQuery.isEmpty()) true else file.name.contains(searchQuery, ignoreCase = true)
-            }
-            .filter { file ->
-                when (selectedFormatFilter) {
-                    "PDFs" -> file.extension.lowercase() == "pdf"
-                    "Office" -> file.extension.lowercase() in OdrDocumentRenderer.SUPPORTED_EXTENSIONS && file.extension.lowercase() != "pdf"
-                    else -> true
+            val filtered = (storageFiles + allAccessibleFiles + deepDocumentFiles)
+                .distinctBy { it.absolutePath }
+                .filter { file ->
+                    file.isFile && (
+                        file.extension.lowercase() in documentExtensions ||
+                        StorageHelper.getMimeType(file).contains("pdf")
+                    )
                 }
-            }
+                .filter { file ->
+                    if (searchQuery.isEmpty()) true else file.name.contains(searchQuery, ignoreCase = true)
+                }
+                .filter { file ->
+                    when (selectedFormatFilter) {
+                        "PDFs" -> file.extension.lowercase() == "pdf"
+                        "Office" -> file.extension.lowercase() in OdrDocumentRenderer.SUPPORTED_EXTENSIONS && file.extension.lowercase() != "pdf"
+                        else -> true
+                    }
+                }
 
-        val comparator = when (sortOption) {
-            SortOption.NAME -> compareBy<File> { it.name.lowercase() }
-            SortOption.DATE -> compareBy<File> { it.lastModified() }
-            SortOption.SIZE -> compareBy<File> { it.length() }
-            SortOption.TYPE -> compareBy<File> { it.extension.lowercase() }
+            val comparator = when (sortOption) {
+                SortOption.NAME -> compareBy<File> { it.name.lowercase() }
+                SortOption.DATE -> compareBy<File> { it.lastModified() }
+                SortOption.SIZE -> compareBy<File> { it.length() }
+                SortOption.TYPE -> compareBy<File> { it.extension.lowercase() }
+            }
+            if (sortAscending) filtered.sortedWith(comparator) else filtered.sortedWith(comparator).reversed()
         }
-        if (sortAscending) filtered.sortedWith(comparator) else filtered.sortedWith(comparator).reversed()
     }
 
     Column(

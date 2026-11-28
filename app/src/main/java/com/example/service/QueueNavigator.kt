@@ -27,7 +27,6 @@ package com.example.service
  * Shuffle is modelled as a **bag**: [played] is the ordered list of tracks already
  * played in this pass, seeded with whatever was playing when the pass started, and a
 
-import com.example.ui.components.AppIcons
  * pick only comes from its complement. A pass therefore plays every track once before
  * repeating anything, and Previous can walk back through it. When the bag empties,
  * repeat ALL starts a fresh pass and repeat OFF ends the queue.

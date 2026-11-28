@@ -24,7 +24,6 @@ import kotlinx.coroutines.launch
  * to the player, and call [stop] when the player closes (or a new file opens).
  */
 
-import com.example.ui.components.AppIcons
 object SambaMediaStream {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val running = AtomicBoolean(false)

@@ -37,7 +37,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.core.graphics.drawable.toBitmap
-import com.example.ui.components.landscapeContentWidth
 import com.example.ui.components.AppIcons
 import com.example.ui.components.AppSearchField
 import com.example.ui.theme.AppCornerRadius

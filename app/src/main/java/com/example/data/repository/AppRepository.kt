@@ -1,7 +1,6 @@
 package com.example.data.repository
 
 import com.example.data.db.*
-import com.example.ui.components.AppIcons
 import kotlinx.coroutines.flow.Flow
 
 class AppRepository(private val db: AppDatabase) {

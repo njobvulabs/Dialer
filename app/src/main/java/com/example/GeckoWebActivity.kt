@@ -1,18 +1,13 @@
 package com.example
 
 import android.content.Context
-import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Rect
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.media.MediaScannerConnection
-import android.os.Build
 import android.os.Bundle
-import android.os.Environment
-import android.provider.MediaStore
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -29,10 +24,6 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.example.service.WebAppKeepAliveService
 import com.example.util.autoDownloadExternal
-import com.example.ui.components.AppIcons
-import android.os.Handler
-import android.os.Looper
-import com.example.util.StorageHelper
 import com.example.util.contextViewTheme
 import com.example.util.PickedUpload
 import com.example.util.WhatsAppCallEnabler
@@ -48,8 +39,6 @@ import org.mozilla.geckoview.GeckoView
 import org.mozilla.geckoview.WebExtension
 import org.mozilla.geckoview.WebResponse
 import java.io.File
-import java.io.FileOutputStream
-import java.net.URLDecoder
 
 /**
  * WhatsApp Web on the GeckoView engine (Firefox's browser engine).

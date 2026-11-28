@@ -24,7 +24,6 @@ import java.io.FileOutputStream
  *     `Thread`, and on API 30+ `Toast.makeText` throws
  *     `NullPointerException: Can't toast on a thread that has not called
 
-import com.example.ui.components.AppIcons
  *     Looper.prepare()` from `Toast.getLooper()`. That uncaught throw killed the
  *     whole `:webapps` process, so the user saw "downloaded AND the web app
  *     closed" in one tap. Every user-facing message goes through [toastOnMain].

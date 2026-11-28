@@ -2,7 +2,6 @@ package com.example.ui.screens.webapp
 
 import android.content.Context
 import com.example.BuildConfig
-import com.example.ui.components.AppIcons
 import com.example.ui.screens.browser.BrowserEngine
 import org.mozilla.geckoview.AllowOrDeny
 import org.mozilla.geckoview.ContentBlocking

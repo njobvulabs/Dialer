@@ -22,7 +22,6 @@ import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -50,7 +49,6 @@ import com.example.util.AppLock
 import com.example.util.PublicDownloads
 import com.example.util.rememberSavedListState
 import com.example.util.rememberSavedStaggeredGridState
-import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.*
 

@@ -30,7 +30,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
@@ -44,7 +43,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.core.graphics.drawable.toBitmap
 import com.example.AdminReceiver
 import com.example.data.db.ContactEntity
 import com.example.ui.LAUNCHER_LAYOUT_LIST
@@ -60,6 +58,8 @@ import com.example.ui.theme.AppCornerRadius
 import com.example.util.ContactNumbers
 import com.example.util.ExpressionEval
 import com.example.util.rememberSavedGridState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * The launcher-style landing screen. The clock/date header, search toggle, missed/
@@ -121,19 +121,21 @@ fun LauncherHomeScreen(
         val icon: Drawable
     )
 
-    val installedApps = remember {
-        runCatching {
-            val pm = context.packageManager
-            val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-            val apps = pm.queryIntentActivities(intent, PackageManager.MATCH_ALL)
-            apps.mapNotNull { resolveInfo ->
-                val appInfo = resolveInfo.activityInfo.applicationInfo
-                if (appInfo.packageName == context.packageName) return@mapNotNull null
-                val label = runCatching { pm.getApplicationLabel(appInfo).toString() }.getOrNull() ?: return@mapNotNull null
-                val icon = runCatching { pm.getApplicationIcon(appInfo) }.getOrNull() ?: return@mapNotNull null
-                InstalledAppEntry(label, appInfo.packageName, icon)
-            }.distinctBy { it.packageName }.sortedBy { it.label.lowercase() }
-        }.getOrDefault(emptyList())
+    val installedApps by produceState(emptyList<InstalledAppEntry>(), Unit) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                val pm = context.packageManager
+                val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                val apps = pm.queryIntentActivities(intent, PackageManager.MATCH_ALL)
+                apps.mapNotNull { resolveInfo ->
+                    val appInfo = resolveInfo.activityInfo.applicationInfo
+                    if (appInfo.packageName == context.packageName) return@mapNotNull null
+                    val label = runCatching { pm.getApplicationLabel(appInfo).toString() }.getOrNull() ?: return@mapNotNull null
+                    val icon = runCatching { pm.getApplicationIcon(appInfo) }.getOrNull() ?: return@mapNotNull null
+                    InstalledAppEntry(label, appInfo.packageName, icon)
+                }.distinctBy { it.packageName }.sortedBy { it.label.lowercase() }
+            }.getOrDefault(emptyList())
+        }
     }
 
     val customWebApps = remember { CustomWebApps.list(context) }

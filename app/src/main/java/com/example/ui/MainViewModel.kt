@@ -18,7 +18,6 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.db.*
 import com.example.data.repository.AppRepository
 import com.example.service.SmsNotificationListener
-import com.example.ui.components.AppIcons
 import com.example.ui.screens.browser.NTP_URL
 import com.example.ui.theme.AppAccent
 import com.example.ui.theme.AppThemeMode

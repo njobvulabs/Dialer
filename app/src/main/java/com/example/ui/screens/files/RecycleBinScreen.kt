@@ -3,7 +3,6 @@ package com.example.ui.screens.files
 import android.text.format.DateUtils
 import android.text.format.Formatter
 import android.widget.Toast
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,7 +37,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ui.components.landscapeContentWidth
 import com.example.ui.components.AppIcons
 import com.example.ui.components.FloatingTopBar
 import com.example.ui.MainViewModel

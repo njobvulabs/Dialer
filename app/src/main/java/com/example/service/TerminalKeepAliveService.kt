@@ -18,7 +18,6 @@ import android.os.Looper
 import androidx.core.app.NotificationCompat
 import com.example.MainActivity
 import com.example.R
-import com.example.ui.components.AppIcons
 import com.example.util.KeepAliveTimeout
 
 abstract class TerminalKeepAliveService : Service() {

@@ -24,7 +24,6 @@ package com.example.util
  * behaviour isn't disturbed.
  */
 
-import com.example.ui.components.AppIcons
 object WhatsAppTapShim {
     const val ENABLED = true
     const val HOST_MARKER = "whatsapp.com"

@@ -29,7 +29,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -55,9 +54,7 @@ import com.example.ui.components.FloatingTopBar
 import com.example.ui.screens.media.ImageViewerScreen
 import com.example.util.rememberSavedGridState
 import java.io.File
-import android.provider.OpenableColumns
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 private data class GalleryItem(

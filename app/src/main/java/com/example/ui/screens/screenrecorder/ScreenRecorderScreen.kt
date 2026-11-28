@@ -41,7 +41,6 @@ import com.example.ui.components.FloatingTopBar
 import com.example.ui.components.landscapeContentWidth
 import com.example.util.InternalAudioCapture
 import com.example.util.ScreenRecorderController
-import com.example.util.ScreenRecorderOptions
 import com.example.util.ScreenRecorderQuality
 import com.example.util.ScreenRecorderStore
 import java.io.File

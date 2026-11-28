@@ -28,7 +28,6 @@ import androidx.compose.ui.unit.sp
  *   only so a future hero surface has a defined value instead of an accident.
  *
 
-import com.example.ui.components.AppIcons
  * Weights come from the M3 type scale, not from ad-hoc `copy(fontWeight = Bold)` at
  * call sites — `titleMedium`/`titleSmall`/`labelLarge` are already Medium here.
  */

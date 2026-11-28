@@ -17,7 +17,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -27,11 +26,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.MainViewModel
-import com.example.ui.components.landscapeContentWidth
 import com.example.ui.components.AppIcons
 import com.example.ui.components.FloatingTopBar
 import com.example.util.ExpressionEval
-import java.math.BigDecimal
 
 private val OPERATORS = setOf("+", "-", "\u00D7", "\u00F7")
 private val PRECEDENCE = mapOf("+" to 1, "-" to 1, "\u00D7" to 2, "\u00F7" to 2, "%" to 3)

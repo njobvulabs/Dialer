@@ -1,2 +1,0 @@
-ninja: Entering directory `/home/njobvu/.sambashare/nj-dialer/terminal-emulator/.cxx/Debug/1f715b5g/arm64-v8a'
-ninja: no work to do.

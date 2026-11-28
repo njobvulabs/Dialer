@@ -5,7 +5,6 @@ import android.content.res.Configuration
 import android.graphics.Color as AndroidColor
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import com.example.ui.components.AppIcons
 import com.example.ui.theme.AppAccent
 import com.example.ui.theme.AppThemeMode
 import com.example.ui.theme.BlueOnPrimaryContainer

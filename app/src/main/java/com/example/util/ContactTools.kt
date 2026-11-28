@@ -1,14 +1,9 @@
 package com.example.util
 
-import android.content.ContentProviderOperation
-import android.content.Context
-import android.provider.CallLog
-import android.provider.ContactsContract
 import com.example.data.db.CallLogEntity
 import com.example.data.db.CallType
 import com.example.data.db.ContactEntity
 import com.example.data.repository.AppRepository
-import com.example.ui.components.AppIcons
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File

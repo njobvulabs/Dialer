@@ -35,7 +35,6 @@ import androidx.camera.core.Preview
 import androidx.camera.core.UseCaseGroup
 import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.core.resolutionselector.ResolutionSelector
-import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.compose.foundation.border
 import androidx.camera.extensions.ExtensionMode
 import androidx.camera.extensions.ExtensionsManager

@@ -56,9 +56,7 @@ import com.example.ui.components.landscapeContentWidth
 import com.example.ui.components.AppIcons
 import com.example.ui.components.AppSearchField
 import com.example.ui.components.FloatingTopBar
-import com.example.ui.components.MiniAudioBar
 import com.example.ui.MainViewModel
-import com.example.service.AudioEngine
 import com.example.util.FolderStats
 import com.example.util.MediaItem
 import com.example.util.SortOption

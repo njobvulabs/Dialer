@@ -1,12 +1,10 @@
 package com.example.util
 
 import android.content.Context
-import android.database.Cursor
 import android.provider.CallLog
 import com.example.data.db.CallLogEntity
 import com.example.data.db.CallType
 import com.example.data.repository.AppRepository
-import com.example.ui.components.AppIcons
 
 object SystemCallLogImporter {
 

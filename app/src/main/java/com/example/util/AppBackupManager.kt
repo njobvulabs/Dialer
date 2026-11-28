@@ -7,7 +7,6 @@ import com.example.data.db.ContactEntity
 import com.example.data.db.CalendarEventEntity
 import com.example.data.db.NoteEntity
 import com.example.data.repository.AppRepository
-import com.example.ui.components.AppIcons
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray

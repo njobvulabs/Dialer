@@ -11,7 +11,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.snapshotFlow
 import com.example.ui.MainViewModel
-import com.example.ui.components.AppIcons
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 // Restores the last scroll position for a scrollable list keyed by screen.

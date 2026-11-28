@@ -55,7 +55,6 @@ import com.termux.view.TerminalView
 import com.termux.view.TerminalViewClient
 import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
-import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
 private data class TermTab(

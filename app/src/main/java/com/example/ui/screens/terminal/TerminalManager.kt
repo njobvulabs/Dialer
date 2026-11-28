@@ -2,9 +2,7 @@ package com.example.ui.screens.terminal
 
 import android.content.Context
 import android.system.Os
-import android.system.OsConstants
 import android.os.Process
-import com.example.NjApp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
@@ -15,10 +13,6 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.FileWriter
-import java.io.InputStream
-import java.net.HttpURLConnection
-import java.net.URL
-import java.nio.channels.Channels
 
 object TerminalManager {
 

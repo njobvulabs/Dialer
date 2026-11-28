@@ -1,8 +1,0 @@
-com.termux.terminal.terminal-emulator-pngs-0 /home/njobvu/.sambashare/nj-dialer/terminal-emulator/build/generated/res/pngs/release
-com.termux.terminal.terminal-emulator-updated_navigation_xml-1 /home/njobvu/.sambashare/nj-dialer/terminal-emulator/build/generated/updated_navigation_xml/release
-com.termux.terminal.terminal-emulator-mergeReleaseResources-2 /home/njobvu/.sambashare/nj-dialer/terminal-emulator/build/intermediates/incremental/release/mergeReleaseResources/merged.dir
-com.termux.terminal.terminal-emulator-mergeReleaseResources-3 /home/njobvu/.sambashare/nj-dialer/terminal-emulator/build/intermediates/incremental/release/mergeReleaseResources/stripped.dir
-com.termux.terminal.terminal-emulator-release-4 /home/njobvu/.sambashare/nj-dialer/terminal-emulator/build/intermediates/merged_res/release/mergeReleaseResources
-com.termux.terminal.terminal-emulator-release-5 /home/njobvu/.sambashare/nj-dialer/terminal-emulator/build/intermediates/packaged_res/release/packageReleaseResources
-com.termux.terminal.terminal-emulator-main-6 /home/njobvu/.sambashare/nj-dialer/terminal-emulator/src/main/res
-com.termux.terminal.terminal-emulator-release-7 /home/njobvu/.sambashare/nj-dialer/terminal-emulator/src/release/res

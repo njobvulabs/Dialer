@@ -24,7 +24,6 @@ import java.io.File
 
 /** One parsed subtitle cue, in the same shape the player overlay already uses. */
 
-import com.example.ui.components.AppIcons
 data class EmbeddedCue(val startMs: Long, val endMs: Long, val text: String)
 
 /** A subtitle track that was pulled out of the video container itself. */

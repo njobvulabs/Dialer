@@ -17,7 +17,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
-import com.example.ui.components.AppIcons
 import com.example.ui.screens.webapp.GeckoWebAppScreen
 import com.example.ui.theme.AppAccent
 import com.example.ui.theme.AppThemeMode

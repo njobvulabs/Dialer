@@ -37,7 +37,6 @@ import com.example.ui.LAUNCHER_LAYOUT_GRID
 import com.example.ui.LAUNCHER_LAYOUT_LIST
 import com.example.ui.MainViewModel
 import com.example.ui.components.formatFileSize
-import com.example.ui.components.landscapeContentWidth
 import com.example.ui.components.AppIcons
 import com.example.ui.components.FloatingTopBar
 import com.example.ui.screens.home.decodeSampledBitmap

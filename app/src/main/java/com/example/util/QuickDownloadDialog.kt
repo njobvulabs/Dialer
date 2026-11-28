@@ -24,7 +24,6 @@ import android.widget.Toast
  * Single-screen design: link entry, quality picker and Detect stay visible at
  * all times; the live download queue with Pause/Resume/Retry/Cancel sits below.
 
-import com.example.ui.components.AppIcons
  */
 object QuickDownloadDialog {
 
