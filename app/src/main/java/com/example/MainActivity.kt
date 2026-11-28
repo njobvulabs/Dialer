@@ -369,6 +369,11 @@ fun MainAppContent(viewModel: MainViewModel) {
         isBrowserFullscreen = false
     }
 
+    fun closeDocViewer() {
+        activeDocFile = null
+        if (immersiveAppId == null) immersiveAppId = "files"
+    }
+
     fun showHidOverlay() {
         showHidOverlay = true
         immersiveAppId = "hidoverlay"
@@ -756,9 +761,10 @@ fun MainAppContent(viewModel: MainViewModel) {
             pagerInitialIndex = activeImageIndex
         )
     } else if (activeDocFile != null) {
+        BackHandler { closeDocViewer() }
         DocumentReaderDetailView(
             file = activeDocFile!!,
-            onClose = { activeDocFile = null }
+            onClose = ::closeDocViewer
         )
     } else if (activeVideoFile != null) {
         VideoPlayerScreen(
